@@ -336,6 +336,13 @@ class App(QMainWindow):
         self.shortcut_delete = QShortcut(QKeySequence(Qt.Key.Key_Delete), self.playlist)
         self.shortcut_delete.activated.connect(self.remove_file)
         
+        # Bindowanie strzałek (Góra/Dół) do przełączania materiałów na liście
+        self.shortcut_up = QShortcut(QKeySequence(Qt.Key.Key_Up), self)
+        self.shortcut_up.activated.connect(self.play_previous_file)
+        
+        self.shortcut_down = QShortcut(QKeySequence(Qt.Key.Key_Down), self)
+        self.shortcut_down.activated.connect(self.play_next_file)
+        
     def select_logo(self):
         file_path, _ = QFileDialog.getOpenFileName(
             self,
@@ -389,6 +396,12 @@ class App(QMainWindow):
         current_row = self.playlist.currentRow()
         if current_row < self.playlist.count() - 1:
             self.playlist.setCurrentRow(current_row + 1)
+            self.play_media()
+
+    def play_previous_file(self):
+        current_row = self.playlist.currentRow()
+        if current_row > 0:
+            self.playlist.setCurrentRow(current_row - 1)
             self.play_media()
 
     def save_project(self):

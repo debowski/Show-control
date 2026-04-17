@@ -287,6 +287,11 @@ class App(QMainWindow):
         self.window_btn.clicked.connect(self.toggle_projection_window)
         btn_layout.addWidget(self.window_btn)
         
+        self.logo_overlay_btn = QPushButton("Logo Overlay")
+        self.logo_overlay_btn.setCheckable(True)
+        self.logo_overlay_btn.clicked.connect(self.toggle_logo_overlay)
+        btn_layout.addWidget(self.logo_overlay_btn)
+        
         layout.addLayout(btn_layout)
 
         # Pasek postępu
@@ -518,11 +523,14 @@ class App(QMainWindow):
             return
             
         # Przestawienie trybu w GUI (Zawsze w głównym wątku!)
-        is_audio_only = file_path.lower().endswith(('.mp3', '.wav', '.flac', '.aac', '.ogg', '.wma', '.m4a'))
-        if getattr(self, 'vis_checkbox', None) and self.vis_checkbox.isChecked() and is_audio_only:
+        if getattr(self, 'logo_overlay_btn', None) and self.logo_overlay_btn.isChecked():
             self.projection_window.set_mode_audio()
         else:
-            self.projection_window.set_mode_video()
+            is_audio_only = file_path.lower().endswith(('.mp3', '.wav', '.flac', '.aac', '.ogg', '.wma', '.m4a'))
+            if getattr(self, 'vis_checkbox', None) and self.vis_checkbox.isChecked() and is_audio_only:
+                self.projection_window.set_mode_audio()
+            else:
+                self.projection_window.set_mode_video()
             
         # Płynne przejście uruchamiane w osobnym wątku
         threading.Thread(target=self._play_transition_thread, args=(file_path,), daemon=True).start()
@@ -689,6 +697,22 @@ class App(QMainWindow):
         else:
             self.projection_window.show()
             self.window_btn.setText("Ukryj okno projekcji")
+
+    def toggle_logo_overlay(self, checked):
+        if checked:
+            self.projection_window.set_mode_audio()
+        else:
+            # Przywróć tryb w zależności od aktualnie odtwarzanego pliku
+            selected_item = self.playlist.currentItem()
+            if selected_item:
+                file_path = selected_item.text()
+                is_audio_only = file_path.lower().endswith(('.mp3', '.wav', '.flac', '.aac', '.ogg', '.wma', '.m4a'))
+                if is_audio_only and getattr(self, 'vis_checkbox', None) and self.vis_checkbox.isChecked():
+                    self.projection_window.set_mode_audio()
+                else:
+                    self.projection_window.set_mode_video()
+            else:
+                self.projection_window.set_mode_video()
 
     def set_volume(self, value):
         # Metoda dla manipulacji głośnością w locie po ruszeniu suwakiem

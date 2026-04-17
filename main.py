@@ -107,30 +107,6 @@ class AudioVisualizer(QWidget):
             py = int((h - scaled_pixmap.height()) / 2)
             
             painter.drawPixmap(px, py, scaled_pixmap)
-            
-        bar_width = w / self.bars
-        # Ograniczamy wysokość słupków, tak by zajmowały max dolne 35% ekranu i nie zasłaniały całego logo
-        max_bar_height = h * 0.35
-        
-        empty_margin = int(bar_width * 0.2)
-        b_w = int(bar_width - empty_margin)
-        
-        for i in range(self.bars):
-            bar_h = min(max(self.heights[i], 0) / 100.0 * max_bar_height, max_bar_height)
-            if bar_h < 1:
-                continue
-                
-            gradient = QLinearGradient(0, h - bar_h, 0, h)
-            gradient.setColorAt(0.0, QColor(0, 200, 255, 220)) 
-            gradient.setColorAt(1.0, QColor(0, 50, 150, 50))
-            
-            painter.setBrush(QBrush(gradient))
-            painter.setPen(Qt.PenStyle.NoPen)
-            
-            x = int(i * bar_width + empty_margin / 2)
-            y = int(h - bar_h)
-            
-            painter.drawRoundedRect(x, y, b_w, int(bar_h), 3, 3)
 
 class ProjectionWindow(QWidget):
     def __init__(self):
@@ -287,8 +263,8 @@ class App(QMainWindow):
         self.autoplay_checkbox = QCheckBox("Autoodtwarzanie kolejnych plików z listy")
         layout.addWidget(self.autoplay_checkbox)
         
-        # Opcja wizualizacji
-        self.vis_checkbox = QCheckBox("Pokaż wizualizację błękitnych słupków dla plików audio")
+        # Opcja logo dla audio
+        self.vis_checkbox = QCheckBox("Pokaż logo dla plików audio")
         self.vis_checkbox.setChecked(True)
         layout.addWidget(self.vis_checkbox)
         

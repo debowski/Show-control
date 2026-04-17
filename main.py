@@ -277,6 +277,10 @@ class App(QMainWindow):
         self.fullscreen_btn.clicked.connect(self.toggle_projection_fullscreen)
         btn_layout.addWidget(self.fullscreen_btn)
         
+        self.window_btn = QPushButton("Ukryj okno projekcji")
+        self.window_btn.clicked.connect(self.toggle_projection_window)
+        btn_layout.addWidget(self.window_btn)
+        
         layout.addLayout(btn_layout)
         
         # Opcja autoodtwarzania (autoplay)
@@ -599,6 +603,14 @@ class App(QMainWindow):
             self.projection_window.showNormal()
         else:
             self.projection_window.showFullScreen()
+
+    def toggle_projection_window(self):
+        if self.projection_window.isVisible():
+            self.projection_window.hide()
+            self.window_btn.setText("Pokaż okno projekcji")
+        else:
+            self.projection_window.show()
+            self.window_btn.setText("Ukryj okno projekcji")
 
     def set_volume(self, value):
         # Metoda dla manipulacji głośnością w locie po ruszeniu suwakiem

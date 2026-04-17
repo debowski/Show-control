@@ -29,7 +29,8 @@ except ImportError:
 
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                              QHBoxLayout, QPushButton, QSlider, QListWidget, 
-                             QFileDialog, QMessageBox, QCheckBox, QStackedLayout)
+                             QFileDialog, QMessageBox, QCheckBox, QStackedLayout,
+                             QLabel)
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QShortcut, QKeySequence, QPainter, QColor, QLinearGradient, QBrush, QPixmap
 import random
@@ -201,6 +202,7 @@ class App(QMainWindow):
         self.init_ui()
         self.is_playing = False
         self.is_transitioning = False
+        self.user_is_seeking = False
         
     def init_ui(self):
         central_widget = QWidget()
@@ -258,6 +260,23 @@ class App(QMainWindow):
         btn_layout.addWidget(self.window_btn)
         
         layout.addLayout(btn_layout)
+
+        # Pasek postępu
+        self.progress_slider = QSlider(Qt.Orientation.Horizontal)
+        self.progress_slider.setRange(0, 1000)
+        self.progress_slider.sliderMoved.connect(self.set_position)
+        self.progress_slider.sliderPressed.connect(self.slider_pressed)
+        self.progress_slider.sliderReleased.connect(self.slider_released)
+        layout.addWidget(self.progress_slider)
+        
+        # Etykiety czasu
+        time_layout = QHBoxLayout()
+        self.current_time_label = QLabel("00:00")
+        self.total_time_label = QLabel("00:00")
+        time_layout.addWidget(self.current_time_label)
+        time_layout.addStretch()
+        time_layout.addWidget(self.total_time_label)
+        layout.addLayout(time_layout)
         
         # Opcja autoodtwarzania (autoplay)
         self.autoplay_checkbox = QCheckBox("Autoodtwarzanie kolejnych plików z listy")
@@ -344,7 +363,7 @@ class App(QMainWindow):
                 self, 
                 "Wybierz pliki multimedialne", 
                 "", 
-                "Multimedia (*.mp4 *.mp3 *.mkv);;Wszystkie pliki (*.*)"
+                "Multimedia (*.mp4 *.mp3 *.mkv *.jpg *.png);;Wszystkie pliki (*.*)"
             )
             for file in files:
                 self.playlist.addItem(file)
@@ -359,14 +378,56 @@ class App(QMainWindow):
         for item in selected_items:
             self.playlist.takeItem(self.playlist.row(item))
 
+    def format_time(self, ms):
+        s, ms = divmod(ms, 1000)
+        m, s = divmod(s, 60)
+        h, m = divmod(m, 60)
+        if h > 0:
+            return f"{h:02d}:{m:02d}:{s:02d}"
+        else:
+            return f"{m:02d}:{s:02d}"
+
+    def slider_pressed(self):
+        self.user_is_seeking = True
+
+    def slider_released(self):
+        self.user_is_seeking = False
+        self.media_player.set_position(self.progress_slider.value() / 1000.0)
+
+    def set_position(self, value):
+        # Aktualizacja etykiety czasu podczas przesuwania
+        total_time = self.media_player.get_length()
+        if total_time > 0:
+            current_ms = int((value / 1000.0) * total_time)
+            self.current_time_label.setText(self.format_time(current_ms))
+
     def check_player_status(self):
         # Sprawdzanie czy plik naturalnie dobrnął do końca, bez wycięć przez przejścia
-        if getattr(self, 'is_playing', False) and not getattr(self, 'is_transitioning', False):
-            state = self.media_player.get_state()
-            if state in (vlc.State.Ended, vlc.State.Stopped):
-                self.is_playing = False
-                if state == vlc.State.Ended and getattr(self, 'autoplay_checkbox', None) and self.autoplay_checkbox.isChecked():
-                    self.play_next_file()
+        if getattr(self, 'is_playing', False):
+            if not getattr(self, 'is_transitioning', False):
+                state = self.media_player.get_state()
+                if state in (vlc.State.Ended, vlc.State.Stopped):
+                    self.is_playing = False
+                    if state == vlc.State.Ended and getattr(self, 'autoplay_checkbox', None) and self.autoplay_checkbox.isChecked():
+                        self.play_next_file()
+            
+            # Aktualizacja suwaka postępu i czasu
+            if not self.user_is_seeking:
+                pos = self.media_player.get_position()
+                if pos >= 0:
+                    self.progress_slider.setValue(int(pos * 1000))
+                
+                curr_time = self.media_player.get_time()
+                total_time = self.media_player.get_length()
+                if curr_time >= 0:
+                    self.current_time_label.setText(self.format_time(curr_time))
+                if total_time >= 0:
+                    self.total_time_label.setText(self.format_time(total_time))
+        else:
+            if not self.user_is_seeking:
+                self.progress_slider.setValue(0)
+                self.current_time_label.setText("00:00")
+                self.total_time_label.setText("00:00")
 
     def play_next_file(self):
         current_row = self.playlist.currentRow()

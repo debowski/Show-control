@@ -164,6 +164,35 @@ class ProjectionWindow(QWidget):
             self.setWindowTitle("Projekcja")
             self.resize(800, 600)
 
+class PlaylistWidget(QListWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setAcceptDrops(True)
+        self.setDragDropMode(QListWidget.DragDropMode.InternalMove)
+
+    def dragEnterEvent(self, event):
+        if event.mimeData().hasUrls():
+            event.accept()
+        else:
+            super().dragEnterEvent(event)
+
+    def dragMoveEvent(self, event):
+        if event.mimeData().hasUrls():
+            event.accept()
+        else:
+            super().dragMoveEvent(event)
+
+    def dropEvent(self, event):
+        if event.mimeData().hasUrls():
+            event.setDropAction(Qt.DropAction.CopyAction)
+            event.accept()
+            for url in event.mimeData().urls():
+                file_path = url.toLocalFile()
+                if os.path.isfile(file_path):
+                    self.addItem(file_path)
+        else:
+            super().dropEvent(event)
+
 class App(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -210,8 +239,7 @@ class App(QMainWindow):
         layout = QVBoxLayout()
         
         # Lista odtwarzania do zarządzania materiałami
-        self.playlist = QListWidget()
-        self.playlist.setDragDropMode(QListWidget.DragDropMode.InternalMove)
+        self.playlist = PlaylistWidget()
         self.playlist.itemDoubleClicked.connect(lambda item: self.play_media())
         layout.addWidget(self.playlist)
         

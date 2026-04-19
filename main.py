@@ -287,7 +287,7 @@ class App(QMainWindow):
         self.window_btn.clicked.connect(self.toggle_projection_window)
         btn_layout.addWidget(self.window_btn)
         
-        self.logo_overlay_btn = QPushButton("Logo Overlay")
+        self.logo_overlay_btn = QPushButton("Zastąp video obrazkiem (logo)")
         self.logo_overlay_btn.setCheckable(True)
         self.logo_overlay_btn.clicked.connect(self.toggle_logo_overlay)
         btn_layout.addWidget(self.logo_overlay_btn)
@@ -314,15 +314,20 @@ class App(QMainWindow):
         # Opcja autoodtwarzania (autoplay)
         self.autoplay_checkbox = QCheckBox("Autoodtwarzanie kolejnych plików z listy")
         layout.addWidget(self.autoplay_checkbox)
+
+        # Opcja sterowania pilotem (lewo/prawo zamiast góra/dół)
+        self.remote_mode_checkbox = QCheckBox("Tryb pilota (lewo/prawo zamiast góra/dół)")
+        self.remote_mode_checkbox.stateChanged.connect(self.update_shortcuts)
+        layout.addWidget(self.remote_mode_checkbox)
         
         # Opcja logo dla audio
-        self.vis_checkbox = QCheckBox("Pokaż logo dla plików audio")
+        self.vis_checkbox = QCheckBox("Pokaż obrazek (logo) dla plików audio")
         self.vis_checkbox.setChecked(True)
         layout.addWidget(self.vis_checkbox)
         
         # Opcje logo
         logo_layout = QHBoxLayout()
-        self.logo_checkbox = QCheckBox("Wyświetlaj logo pod wizualizacją")
+        self.logo_checkbox = QCheckBox("ON/OFF obrazek (logo) dla plików audio")
         self.logo_checkbox.setChecked(True)
         self.logo_checkbox.stateChanged.connect(self.update_logo_visibility)
         
@@ -364,12 +369,21 @@ class App(QMainWindow):
         self.shortcut_delete = QShortcut(QKeySequence(Qt.Key.Key_Delete), self.playlist)
         self.shortcut_delete.activated.connect(self.remove_file)
         
-        # Bindowanie strzałek (Góra/Dół) do przełączania materiałów na liście
-        self.shortcut_up = QShortcut(QKeySequence(Qt.Key.Key_Up), self)
-        self.shortcut_up.activated.connect(self.play_previous_file)
+        # Bindowanie strzałek do przełączania materiałów na liście (inicjalnie góra/dół)
+        self.shortcut_prev = QShortcut(QKeySequence(Qt.Key.Key_Up), self)
+        self.shortcut_prev.activated.connect(self.play_previous_file)
         
-        self.shortcut_down = QShortcut(QKeySequence(Qt.Key.Key_Down), self)
-        self.shortcut_down.activated.connect(self.play_next_file)
+        self.shortcut_next = QShortcut(QKeySequence(Qt.Key.Key_Down), self)
+        self.shortcut_next.activated.connect(self.play_next_file)
+
+    def update_shortcuts(self):
+        # Aktualizacja przypisania klawiszy w zależności od trybu pilota
+        if self.remote_mode_checkbox.isChecked():
+            self.shortcut_prev.setKey(QKeySequence(Qt.Key.Key_Left))
+            self.shortcut_next.setKey(QKeySequence(Qt.Key.Key_Right))
+        else:
+            self.shortcut_prev.setKey(QKeySequence(Qt.Key.Key_Up))
+            self.shortcut_next.setKey(QKeySequence(Qt.Key.Key_Down))
         
     def select_logo(self):
         file_path, _ = QFileDialog.getOpenFileName(

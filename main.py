@@ -243,51 +243,64 @@ class App(QMainWindow):
         self.playlist.itemDoubleClicked.connect(lambda item: self.play_media())
         layout.addWidget(self.playlist)
         
-        # Przyciski zarządzania projektem
+        # Przyciski zarządzania projektem i plikami (Pierwszy wiersz)
         project_btn_layout = QHBoxLayout()
         
-        self.save_proj_btn = QPushButton("Zapisz projekt")
+        self.save_proj_btn = QPushButton("Zapisz projekt (F12)")
         self.save_proj_btn.clicked.connect(self.save_project)
         project_btn_layout.addWidget(self.save_proj_btn)
         
         self.load_proj_btn = QPushButton("Wczytaj projekt")
         self.load_proj_btn.clicked.connect(self.load_project)
         project_btn_layout.addWidget(self.load_proj_btn)
+
+        self.add_btn = QPushButton("Dodaj pliki (F2)")
+        self.add_btn.clicked.connect(self.add_files)
+        project_btn_layout.addWidget(self.add_btn)
+        
+        self.remove_btn = QPushButton("Usuń z listy (F3)")
+        self.remove_btn.clicked.connect(self.remove_file)
+        project_btn_layout.addWidget(self.remove_btn)
         
         layout.addLayout(project_btn_layout)
+
+        # Układ przycisków nawigacji (Drugi wiersz)
+        nav_btn_layout = QHBoxLayout()
         
-        # Układ przycisków sterowania
+        self.prev_btn = QPushButton("<< Poprzedni (F6)")
+        self.prev_btn.clicked.connect(self.play_previous_file)
+        nav_btn_layout.addWidget(self.prev_btn)
+
+        self.next_btn = QPushButton("Następny >> (F7)")
+        self.next_btn.clicked.connect(self.play_next_file)
+        nav_btn_layout.addWidget(self.next_btn)
+
+        layout.addLayout(nav_btn_layout)
+        
+        # Układ przycisków sterowania i wyświetlania (Trzeci wiersz)
         btn_layout = QHBoxLayout()
         
-        self.add_btn = QPushButton("Dodaj")
-        self.add_btn.clicked.connect(self.add_files)
-        btn_layout.addWidget(self.add_btn)
-        
-        self.remove_btn = QPushButton("Usuń")
-        self.remove_btn.clicked.connect(self.remove_file)
-        btn_layout.addWidget(self.remove_btn)
-        
-        self.play_btn = QPushButton("Play")
+        self.play_btn = QPushButton("Play (F4)")
         self.play_btn.clicked.connect(self.play_media)
         btn_layout.addWidget(self.play_btn)
         
-        self.stop_btn = QPushButton("Stop")
+        self.stop_btn = QPushButton("Stop (F5)")
         self.stop_btn.clicked.connect(self.stop_media)
         btn_layout.addWidget(self.stop_btn)
         
-        self.fade_btn = QPushButton("Fade Out")
+        self.fade_btn = QPushButton("Fade Out (F8)")
         self.fade_btn.clicked.connect(self.fade_out)
         btn_layout.addWidget(self.fade_btn)
         
-        self.fullscreen_btn = QPushButton("Pełny Ekran")
+        self.fullscreen_btn = QPushButton("Pełny Ekran (F9)")
         self.fullscreen_btn.clicked.connect(self.toggle_projection_fullscreen)
         btn_layout.addWidget(self.fullscreen_btn)
         
-        self.window_btn = QPushButton("Ukryj okno projekcji")
+        self.window_btn = QPushButton("Ukryj okno (F10)")
         self.window_btn.clicked.connect(self.toggle_projection_window)
         btn_layout.addWidget(self.window_btn)
         
-        self.logo_overlay_btn = QPushButton("Zastąp video obrazkiem (logo)")
+        self.logo_overlay_btn = QPushButton("Logo Overlay (F11)")
         self.logo_overlay_btn.setCheckable(True)
         self.logo_overlay_btn.clicked.connect(self.toggle_logo_overlay)
         btn_layout.addWidget(self.logo_overlay_btn)
@@ -375,6 +388,40 @@ class App(QMainWindow):
         
         self.shortcut_next = QShortcut(QKeySequence(Qt.Key.Key_Down), self)
         self.shortcut_next.activated.connect(self.play_next_file)
+
+        # --- KLAWISZE FUNKCYJNE (F2 - F12) ---
+        self.f2_shortcut = QShortcut(QKeySequence(Qt.Key.Key_F2), self)
+        self.f2_shortcut.activated.connect(self.add_files)
+
+        self.f3_shortcut = QShortcut(QKeySequence(Qt.Key.Key_F3), self)
+        self.f3_shortcut.activated.connect(self.remove_file)
+
+        self.f4_shortcut = QShortcut(QKeySequence(Qt.Key.Key_F4), self)
+        self.f4_shortcut.activated.connect(self.play_media)
+
+        self.f5_shortcut = QShortcut(QKeySequence(Qt.Key.Key_F5), self)
+        self.f5_shortcut.activated.connect(self.stop_media)
+
+        self.f6_shortcut = QShortcut(QKeySequence(Qt.Key.Key_F6), self)
+        self.f6_shortcut.activated.connect(self.play_previous_file)
+
+        self.f7_shortcut = QShortcut(QKeySequence(Qt.Key.Key_F7), self)
+        self.f7_shortcut.activated.connect(self.play_next_file)
+
+        self.f8_shortcut = QShortcut(QKeySequence(Qt.Key.Key_F8), self)
+        self.f8_shortcut.activated.connect(self.fade_out)
+
+        self.f9_shortcut = QShortcut(QKeySequence(Qt.Key.Key_F9), self)
+        self.f9_shortcut.activated.connect(self.toggle_projection_fullscreen)
+
+        self.f10_shortcut = QShortcut(QKeySequence(Qt.Key.Key_F10), self)
+        self.f10_shortcut.activated.connect(self.toggle_projection_window)
+
+        self.f11_shortcut = QShortcut(QKeySequence(Qt.Key.Key_F11), self)
+        self.f11_shortcut.activated.connect(lambda: self.logo_overlay_btn.animateClick())
+
+        self.f12_shortcut = QShortcut(QKeySequence(Qt.Key.Key_F12), self)
+        self.f12_shortcut.activated.connect(self.save_project)
 
     def update_shortcuts(self):
         # Aktualizacja przypisania klawiszy w zależności od trybu pilota
@@ -743,6 +790,120 @@ class App(QMainWindow):
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
+    
+    # VS Code Dark Theme Stylesheet
+    app.setStyleSheet("""
+        QMainWindow, QWidget {
+            background-color: #1e1e1e;
+            color: #d4d4d4;
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            font-size: 10pt;
+        }
+        
+        /* Buttons */
+        QPushButton {
+            background-color: #333333;
+            border: 1px solid #454545;
+            color: #cccccc;
+            padding: 6px 12px;
+            border-radius: 2px;
+            min-height: 18px;
+        }
+        QPushButton:hover {
+            background-color: #454545;
+        }
+        QPushButton:pressed {
+            background-color: #007acc;
+            color: white;
+            border: 1px solid #007acc;
+        }
+        QPushButton:checked {
+            background-color: #0e639c;
+            color: white;
+        }
+        
+        /* Playlist / ListWidget */
+        QListWidget {
+            background-color: #252526;
+            border: 1px solid #3c3c3c;
+            color: #cccccc;
+            outline: none;
+            padding: 2px;
+        }
+        QListWidget::item {
+            padding: 6px;
+            border-bottom: 1px solid #2d2d2d;
+        }
+        QListWidget::item:selected {
+            background-color: #37373d;
+            color: #ffffff;
+            border-left: 3px solid #007acc;
+        }
+        QListWidget::item:hover {
+            background-color: #2a2d2e;
+        }
+        
+        /* Sliders */
+        QSlider::groove:horizontal {
+            border: 1px solid #3c3c3c;
+            height: 4px;
+            background: #3c3c3c;
+            margin: 2px 0;
+        }
+        QSlider::handle:horizontal {
+            background: #007acc;
+            width: 14px;
+            height: 14px;
+            margin: -5px 0;
+            border-radius: 7px;
+        }
+        QSlider::handle:horizontal:hover {
+            background: #1c97ea;
+        }
+        
+        /* Checkbox */
+        QCheckBox {
+            spacing: 8px;
+        }
+        QCheckBox::indicator {
+            width: 16px;
+            height: 16px;
+            background-color: #3c3c3c;
+            border: 1px solid #454545;
+            border-radius: 2px;
+        }
+        QCheckBox::indicator:checked {
+            background-color: #007acc;
+            border: 1px solid #007acc;
+            image: url(data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0id2hpdGUiIHdpZHRoPSIxMnB4IiBoZWlnaHQ9IjEycHgiPjxwYXRoIGQ9Ik05IDE2LjE3TDQuODMgMTJsLTEuNDIgMS40MUw5IDE5IDIxIDdsLTEuNDEtMS40MXoiLz48L3N2Zz4=);
+        }
+        
+        /* Labels */
+        QLabel {
+            color: #bbbbbb;
+        }
+        
+        /* ScrollBar */
+        QScrollBar:vertical {
+            border: none;
+            background: #1e1e1e;
+            width: 12px;
+            margin: 0px;
+        }
+        QScrollBar::handle:vertical {
+            background: #424242;
+            min-height: 20px;
+            border-radius: 0px;
+            margin: 2px;
+        }
+        QScrollBar::handle:vertical:hover {
+            background: #4f4f4f;
+        }
+        QScrollBar::add-line, QScrollBar::sub-line {
+            height: 0px;
+        }
+    """)
+    
     window = App()
     window.show()
     sys.exit(app.exec())

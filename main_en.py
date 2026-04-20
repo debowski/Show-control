@@ -1,19 +1,3 @@
-# Show-control
-# Copyright (C) 2026 Piotr
-#
-# This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <https://www.gnu.org/licenses/>.
-
 import sys
 import os
 import time
@@ -23,8 +7,8 @@ import json
 try:
     import vlc
 except ImportError:
-    print("Błąd: Biblioteka python-vlc nie jest zainstalowana.")
-    print("Zainstaluj ją używając: pip install python-vlc")
+    print("Error: python-vlc library is not installed.")
+    print("Install it using: pip install python-vlc")
     sys.exit(1)
 
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
@@ -95,10 +79,8 @@ class AudioVisualizer(QWidget):
         w = self.width()
         h = self.height()
         
-        # Rysowanie tła (logo)
+        # Draw background (logo)
         if self.show_logo and getattr(self, 'logo_pixmap', None) and not self.logo_pixmap.isNull():
-            target_h = int(h * 0.8)
-            target_w = int(w * 0.8)
             scaled_pixmap = self.logo_pixmap.scaled(
                 w, h, 
                 Qt.AspectRatioMode.KeepAspectRatio, 
@@ -112,9 +94,8 @@ class AudioVisualizer(QWidget):
 class ProjectionWindow(QWidget):
     def __init__(self):
         super().__init__()
-        # Zwykłe okno, aby móc przenosić i skalować materiał po wyjściu z pełnego ekranu
         self.setWindowFlags(Qt.WindowType.Window)
-        self.setWindowTitle("Projekcja - Odtwarzacz")
+        self.setWindowTitle("Projection - Media Player")
         self.setStyleSheet("background-color: black;")
         
         self.video_widget = QWidget()
@@ -125,7 +106,6 @@ class ProjectionWindow(QWidget):
         vis_layout = QVBoxLayout(self.vis_container)
         vis_layout.setContentsMargins(0, 0, 0, 0)
         self.visualizer = AudioVisualizer()
-        # Wizualizer wypełnia całościowo swój kontener, by poprawnie wyśrodkować logo na pulpicie
         vis_layout.addWidget(self.visualizer)
         
         self.stacked_layout = QStackedLayout(self)
@@ -152,7 +132,6 @@ class ProjectionWindow(QWidget):
             event.accept()
 
     def move_to_second_screen(self):
-        # Domyślnie otwiera się na drugim monitorze (jeśli dostępny)
         screens = QApplication.screens()
         if len(screens) > 1:
             second_screen = screens[1]
@@ -160,8 +139,7 @@ class ProjectionWindow(QWidget):
             self.move(second_screen.geometry().topLeft() + second_screen.geometry().center() - self.rect().center())
             self.showFullScreen()
         else:
-            # Okno pomocnicze na głównym ekranie, jeśli brak drugiego monitora
-            self.setWindowTitle("Projekcja")
+            self.setWindowTitle("Projection Output")
             self.resize(800, 600)
 
 class PlaylistWidget(QListWidget):
@@ -196,27 +174,21 @@ class PlaylistWidget(QListWidget):
 class App(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Show Control - Operator")
-        self.setGeometry(100, 100, 600, 400)
+        self.setWindowTitle("Show Control - Operator Console")
+        self.setGeometry(100, 100, 700, 500)
         
-        # Inicjalizacja VLC z obsługą wyjątków na wypadek braku odpowiednich bibliotek
         try:
-            # Używamy Direct3D9 zamiast domyślnego D3D11, aby uniknąć błędów wyjścia obrazu w PyQt 
-            # oraz '--quiet', by ukryć niegroźne logi dekodera z konsoli
             self.vlc_instance = vlc.Instance('--no-xlib', '--quiet', '--vout=direct3d9', '--video-filter=adjust')
             self.media_player = self.vlc_instance.media_player_new()
-            # Włączamy filtr adjust dla płynnych przejść jasności obrazu
             self.media_player.video_set_adjust_int(vlc.VideoAdjustOption.Enable, 1)
         except Exception as e:
-            QMessageBox.critical(self, "Błąd VLC", f"Nie można zainicjować silnika VLC:\n{e}\nUpewnij się, że VLC media player jest poprawnie zainstalowany.")
+            QMessageBox.critical(self, "VLC Engine Error", f"Could not initialize VLC engine:\n{e}\nPlease ensure VLC media player is installed correctly.")
             sys.exit(1)
             
-        # Utworzenie okna projekcyjnego i przeniesienie na 2. ekran
         self.projection_window = ProjectionWindow()
         self.projection_window.move_to_second_screen()
         self.projection_window.show()
         
-        # Podłączenie instancji odtwarzacza do Okna Projekcyjnego (zależne od OS)
         if sys.platform.startswith("win"):
             self.media_player.set_hwnd(int(self.projection_window.video_widget.winId()))
         elif sys.platform.startswith("linux"):
@@ -224,7 +196,6 @@ class App(QMainWindow):
         elif sys.platform == "darwin":
             self.media_player.set_nsobject(int(self.projection_window.video_widget.winId()))
             
-        # Przekaż wejście myszy i klawiatury do okna nadrzędnego, co pozwala na obsługę np. dwukliku
         self.media_player.video_set_mouse_input(False)
         self.media_player.video_set_key_input(False)
             
@@ -238,46 +209,47 @@ class App(QMainWindow):
         self.setCentralWidget(central_widget)
         layout = QVBoxLayout()
         
-        # Lista odtwarzania do zarządzania materiałami
+        # Playlist Header
+        layout.addWidget(QLabel("Media Playlist (Drag & Drop supported):"))
         self.playlist = PlaylistWidget()
         self.playlist.itemDoubleClicked.connect(lambda item: self.play_media())
         layout.addWidget(self.playlist)
         
-        # Przyciski zarządzania projektem i plikami (Pierwszy wiersz)
+        # Project Management (Row 1)
         project_btn_layout = QHBoxLayout()
         
-        self.save_proj_btn = QPushButton("Zapisz projekt (F12)")
+        self.save_proj_btn = QPushButton("Save Project (F12)")
         self.save_proj_btn.clicked.connect(self.save_project)
         project_btn_layout.addWidget(self.save_proj_btn)
         
-        self.load_proj_btn = QPushButton("Wczytaj projekt")
+        self.load_proj_btn = QPushButton("Load Project")
         self.load_proj_btn.clicked.connect(self.load_project)
         project_btn_layout.addWidget(self.load_proj_btn)
 
-        self.add_btn = QPushButton("Dodaj pliki")
+        self.add_btn = QPushButton("Add Media")
         self.add_btn.clicked.connect(self.add_files)
         project_btn_layout.addWidget(self.add_btn)
         
-        self.remove_btn = QPushButton("Usuń z listy")
+        self.remove_btn = QPushButton("Remove Selected")
         self.remove_btn.clicked.connect(self.remove_file)
         project_btn_layout.addWidget(self.remove_btn)
         
         layout.addLayout(project_btn_layout)
 
-        # Układ przycisków nawigacji (Drugi wiersz)
+        # Navigation (Row 2)
         nav_btn_layout = QHBoxLayout()
         
-        self.prev_btn = QPushButton("<< Poprzedni (F6)")
+        self.prev_btn = QPushButton("<< Previous (F6)")
         self.prev_btn.clicked.connect(self.play_previous_file)
         nav_btn_layout.addWidget(self.prev_btn)
 
-        self.next_btn = QPushButton("Następny >> (F7)")
+        self.next_btn = QPushButton("Next >> (F7)")
         self.next_btn.clicked.connect(self.play_next_file)
         nav_btn_layout.addWidget(self.next_btn)
 
         layout.addLayout(nav_btn_layout)
         
-        # Układ przycisków sterowania i wyświetlania (Trzeci wiersz)
+        # Transport & Display Controls (Row 3)
         btn_layout = QHBoxLayout()
         
         self.play_btn = QPushButton("Play (F4)")
@@ -292,11 +264,11 @@ class App(QMainWindow):
         self.fade_btn.clicked.connect(self.fade_out)
         btn_layout.addWidget(self.fade_btn)
         
-        self.fullscreen_btn = QPushButton("Pełny Ekran (F9)")
+        self.fullscreen_btn = QPushButton("Fullscreen (F9)")
         self.fullscreen_btn.clicked.connect(self.toggle_projection_fullscreen)
         btn_layout.addWidget(self.fullscreen_btn)
         
-        self.window_btn = QPushButton("Ukryj okno")
+        self.window_btn = QPushButton("Hide Window")
         self.window_btn.clicked.connect(self.toggle_projection_window)
         btn_layout.addWidget(self.window_btn)
         
@@ -307,7 +279,7 @@ class App(QMainWindow):
         
         layout.addLayout(btn_layout)
 
-        # Pasek postępu
+        # Progress bar
         self.progress_slider = QSlider(Qt.Orientation.Horizontal)
         self.progress_slider.setRange(0, 1000)
         self.progress_slider.sliderMoved.connect(self.set_position)
@@ -315,7 +287,7 @@ class App(QMainWindow):
         self.progress_slider.sliderReleased.connect(self.slider_released)
         layout.addWidget(self.progress_slider)
         
-        # Etykiety czasu
+        # Time Labels
         time_layout = QHBoxLayout()
         self.current_time_label = QLabel("00:00")
         self.total_time_label = QLabel("00:00")
@@ -324,68 +296,66 @@ class App(QMainWindow):
         time_layout.addWidget(self.total_time_label)
         layout.addLayout(time_layout)
         
-        # Opcja autoodtwarzania (autoplay)
-        self.autoplay_checkbox = QCheckBox("Autoodtwarzanie kolejnych plików z listy")
+        # Settings
+        self.autoplay_checkbox = QCheckBox("Autoplay next item in list")
         layout.addWidget(self.autoplay_checkbox)
 
-        # Opcja sterowania pilotem (lewo/prawo zamiast góra/dół)
-        self.remote_mode_checkbox = QCheckBox("Tryb pilota (lewo/prawo zamiast góra/dół)")
+        self.remote_mode_checkbox = QCheckBox("Remote Mode (Left/Right instead of Up/Down)")
         self.remote_mode_checkbox.stateChanged.connect(self.update_shortcuts)
         self.remote_mode_checkbox.setChecked(True)
         layout.addWidget(self.remote_mode_checkbox)
         
-        # Opcje logo
+        # Logo Settings
         logo_layout = QHBoxLayout()
-        self.logo_checkbox = QCheckBox("ON/OFF obrazek (logo) dla plików audio F10")
+        self.logo_checkbox = QCheckBox("Enable Logo for audio tracks")
         self.logo_checkbox.setChecked(True)
         self.logo_checkbox.stateChanged.connect(self.update_logo_visibility)
         
-        self.logo_btn = QPushButton("Wybierz plik logo")
+        self.logo_btn = QPushButton("Select Logo Image")
         self.logo_btn.clicked.connect(self.select_logo)
         
         logo_layout.addWidget(self.logo_checkbox)
         logo_layout.addWidget(self.logo_btn)
         layout.addLayout(logo_layout)
         
-        # Timer do nasłuchiwania czy materiał wideo dotarł do końca (Ended)
         self.status_timer = QTimer(self)
         self.status_timer.timeout.connect(self.check_player_status)
         self.status_timer.start(500)
         
-        # Suwak głośności dla operatora
+        # Master Volume
+        vol_layout = QHBoxLayout()
+        vol_layout.addWidget(QLabel("Master Volume:"))
         self.volume_slider = QSlider(Qt.Orientation.Horizontal)
         self.volume_slider.setRange(0, 100)
         self.volume_slider.setValue(100)
         self.volume_slider.setTickPosition(QSlider.TickPosition.TicksBelow)
         self.volume_slider.setTickInterval(10)
         self.volume_slider.valueChanged.connect(self.set_volume)
-        layout.addWidget(self.volume_slider)
+        vol_layout.addWidget(self.volume_slider)
+        layout.addLayout(vol_layout)
         
         central_widget.setLayout(layout)
         
-        # Bindowanie klawisza "Spacja" jako uniwersalny klawisz skrótu Play/Pause
+        # Keyboard Shortcuts
         self.shortcut_space = QShortcut(QKeySequence(Qt.Key.Key_Space), self)
         self.shortcut_space.activated.connect(self.toggle_play_pause)
         
-        # Bindowanie klawisza "Enter" do uruchamiania odtwarzania zaznaczonego elementu
         self.shortcut_enter = QShortcut(QKeySequence(Qt.Key.Key_Return), self.playlist)
         self.shortcut_enter.activated.connect(self.play_media)
         
         self.shortcut_enter2 = QShortcut(QKeySequence(Qt.Key.Key_Enter), self.playlist)
         self.shortcut_enter2.activated.connect(self.play_media)
         
-        # Bindowanie klawisza "Delete" do usuwania plików
         self.shortcut_delete = QShortcut(QKeySequence(Qt.Key.Key_Delete), self.playlist)
         self.shortcut_delete.activated.connect(self.remove_file)
         
-        # Bindowanie strzałek do przełączania materiałów na liście (inicjalnie góra/dół)
         self.shortcut_prev = QShortcut(QKeySequence(Qt.Key.Key_Up), self)
         self.shortcut_prev.activated.connect(self.play_previous_file)
         
         self.shortcut_next = QShortcut(QKeySequence(Qt.Key.Key_Down), self)
         self.shortcut_next.activated.connect(self.play_next_file)
 
-        # --- KLAWISZE FUNKCYJNE (F2 - F12) ---
+        # Function Keys
         self.f4_shortcut = QShortcut(QKeySequence(Qt.Key.Key_F4), self)
         self.f4_shortcut.activated.connect(self.play_media)
 
@@ -404,25 +374,18 @@ class App(QMainWindow):
         self.f9_shortcut = QShortcut(QKeySequence(Qt.Key.Key_F9), self)
         self.f9_shortcut.activated.connect(self.toggle_projection_fullscreen)
 
-        self.f10_shortcut = QShortcut(QKeySequence(Qt.Key.Key_F10), self)
-        self.f10_shortcut.activated.connect(self.toggle_logo_checkbox)
-        
-
         self.f11_shortcut = QShortcut(QKeySequence(Qt.Key.Key_F11), self)
         self.f11_shortcut.activated.connect(lambda: self.logo_overlay_btn.animateClick())
 
         self.f12_shortcut = QShortcut(QKeySequence(Qt.Key.Key_F12), self)
         self.f12_shortcut.activated.connect(self.save_project)
 
-        # Inicjalne ustawienie skrótów na podstawie domyślnego stanu checkboxa
         self.update_shortcuts()
 
     def update_shortcuts(self):
-        # Sprawdź czy skróty zostały już zainicjalizowane
         if not hasattr(self, 'shortcut_prev') or not hasattr(self, 'shortcut_next'):
             return
             
-        # Aktualizacja przypisania klawiszy w zależności od trybu pilota
         if self.remote_mode_checkbox.isChecked():
             self.shortcut_prev.setKey(QKeySequence(Qt.Key.Key_Left))
             self.shortcut_next.setKey(QKeySequence(Qt.Key.Key_Right))
@@ -433,37 +396,35 @@ class App(QMainWindow):
     def select_logo(self):
         file_path, _ = QFileDialog.getOpenFileName(
             self,
-            "Wybierz plik graficzny (logo)",
+            "Select Logo Image",
             "",
-            "Obrazy (*.png *.jpg *.jpeg *.bmp *.gif);;Wszystkie pliki (*.*)"
+            "Images (*.png *.jpg *.jpeg *.bmp *.gif);;All Files (*.*)"
         )
         if file_path:
             pixmap = QPixmap(file_path)
             if not pixmap.isNull():
                 self.projection_window.visualizer.logo_pixmap = pixmap
-                QMessageBox.information(self, "Zalogowano", "Pomyślnie wczytano logo do wizualizacji.")
+                QMessageBox.information(self, "Logo Loaded", "Visualization logo has been successfully loaded.")
             else:
-                QMessageBox.warning(self, "Błąd", "Nie udało się wczytać pliku jako obraz.")
+                QMessageBox.warning(self, "Error", "Failed to load the image file.")
                 
     def update_logo_visibility(self):
         self.projection_window.visualizer.show_logo = self.logo_checkbox.isChecked()
 
     def add_files(self):
-        # Otwórz okno QFileDialog aby dodać pliki .mp4, .mp3, .mkv do czytelnej listy
         try:
             files, _ = QFileDialog.getOpenFileNames(
                 self, 
-                "Wybierz pliki multimedialne", 
+                "Select Media Files", 
                 "", 
-                "Multimedia (*.mp4 *.mp3 *.mkv *.jpg *.png);;Wszystkie pliki (*.*)"
+                "Media (*.mp4 *.mp3 *.mkv *.jpg *.png *.wav *.flac);;All Files (*.*)"
             )
             for file in files:
                 self.playlist.addItem(file)
         except Exception as e:
-            QMessageBox.warning(self, "Błąd", f"Wystąpił problem podczas dodawania plików:\n{e}")
+            QMessageBox.warning(self, "Error", f"A problem occurred while adding files:\n{e}")
 
     def remove_file(self):
-        # Usuwanie zaznaczonych elementów z listy
         selected_items = self.playlist.selectedItems()
         if not selected_items:
             return
@@ -487,14 +448,12 @@ class App(QMainWindow):
         self.media_player.set_position(self.progress_slider.value() / 1000.0)
 
     def set_position(self, value):
-        # Aktualizacja etykiety czasu podczas przesuwania
         total_time = self.media_player.get_length()
         if total_time > 0:
             current_ms = int((value / 1000.0) * total_time)
             self.current_time_label.setText(self.format_time(current_ms))
 
     def check_player_status(self):
-        # Sprawdzanie czy plik naturalnie dobrnął do końca, bez wycięć przez przejścia
         if getattr(self, 'is_playing', False):
             if not getattr(self, 'is_transitioning', False):
                 state = self.media_player.get_state()
@@ -503,7 +462,6 @@ class App(QMainWindow):
                     if state == vlc.State.Ended and getattr(self, 'autoplay_checkbox', None) and self.autoplay_checkbox.isChecked():
                         self.play_next_file()
             
-            # Aktualizacja suwaka postępu i czasu
             if not self.user_is_seeking:
                 pos = self.media_player.get_position()
                 if pos >= 0:
@@ -537,25 +495,25 @@ class App(QMainWindow):
         try:
             file_path, _ = QFileDialog.getSaveFileName(
                 self, 
-                "Zapisz projekt", 
+                "Save Project", 
                 "", 
-                "Plik projektu (*.json);;Wszystkie pliki (*.*)"
+                "Project Files (*.json);;All Files (*.*)"
             )
             if file_path:
                 items = [self.playlist.item(i).text() for i in range(self.playlist.count())]
                 with open(file_path, 'w', encoding='utf-8') as f:
                     json.dump(items, f, ensure_ascii=False, indent=4)
-                QMessageBox.information(self, "Zapisano", "Projekt został pomyślnie zapisany.")
+                QMessageBox.information(self, "Saved", "Project has been saved successfully.")
         except Exception as e:
-            QMessageBox.warning(self, "Błąd", f"Nie udało się zapisać projektu:\n{e}")
+            QMessageBox.warning(self, "Error", f"Failed to save project:\n{e}")
 
     def load_project(self):
         try:
             file_path, _ = QFileDialog.getOpenFileName(
                 self,
-                "Wczytaj projekt",
+                "Load Project",
                 "",
-                "Plik projektu (*.json);;Wszystkie pliki (*.*)"
+                "Project Files (*.json);;All Files (*.*)"
             )
             if file_path:
                 with open(file_path, 'r', encoding='utf-8') as f:
@@ -563,25 +521,22 @@ class App(QMainWindow):
                 self.playlist.clear()
                 self.playlist.addItems(items)
         except Exception as e:
-            QMessageBox.warning(self, "Błąd", f"Nie udało się wczytać projektu:\n{e}")
+            QMessageBox.warning(self, "Error", f"Failed to load project:\n{e}")
 
     def play_media(self):
-        # Uruchamianie zaznaczonego elementu z listy
         selected_item = self.playlist.currentItem()
         if not selected_item:
             return
             
         file_path = selected_item.text()
         
-        # Zabezpieczenie na wypadek nieistniejącej lub błędnej ścieżki
         if not os.path.exists(file_path):
-            QMessageBox.warning(self, "Błąd", "Błędna ścieżka do pliku. Wybrany plik nie istnieje.")
+            QMessageBox.warning(self, "Error", "Invalid file path. Selected file does not exist.")
             return
             
         if getattr(self, 'is_transitioning', False):
             return
             
-        # Przestawienie trybu w GUI (Zawsze w głównym wątku!)
         if getattr(self, 'logo_overlay_btn', None) and self.logo_overlay_btn.isChecked():
             self.projection_window.set_mode_audio()
         else:
@@ -591,7 +546,6 @@ class App(QMainWindow):
             else:
                 self.projection_window.set_mode_video()
             
-        # Płynne przejście uruchamiane w osobnym wątku
         threading.Thread(target=self._play_transition_thread, args=(file_path,), daemon=True).start()
 
     def _play_transition_thread(self, file_path):
@@ -599,13 +553,11 @@ class App(QMainWindow):
         target_volume = self.volume_slider.value()
         
         try:
-            # Fade out jeśli coś już gra
             if self.is_playing:
                 current_volume = self.media_player.audio_get_volume()
                 if current_volume < 0:
                     current_volume = target_volume
                     
-                # 1 sekunda fade-out
                 steps_out = 20
                 sleep_interval_out = 1.0 / steps_out
                 step_volume_out = current_volume / steps_out
@@ -627,23 +579,18 @@ class App(QMainWindow):
                     time.sleep(sleep_interval_out)
                     
                 self.media_player.stop()
-                # Zapobiegawczo upewniamy się, że obraz jest wygaszony przed załadowaniem nowego pliku
                 self.media_player.video_set_adjust_float(vlc.VideoAdjustOption.Brightness, 0.0)
                 
-            # Uruchomienie nowego pliku
             media = self.vlc_instance.media_new(file_path)
             self.media_player.set_media(media)
             self.media_player.play()
             self.is_playing = True
             
-            # Poczekaj chwilę, żeby VLC zdążył rozpocząć odtwarzanie i zaaplikować poziom głośności
             time.sleep(0.15)
             self.media_player.audio_set_volume(0)
             self.media_player.video_set_adjust_float(vlc.VideoAdjustOption.Brightness, 0.0)
-            # Upewniamy się raz jeszcze że filtr działa po załadowaniu nowych mediów
             self.media_player.video_set_adjust_int(vlc.VideoAdjustOption.Enable, 1) 
             
-            # Fade in (0.3 sekundy)
             steps_in = 20
             sleep_interval_in = 0.3 / steps_in
             current_volume_in = 0
@@ -670,12 +617,11 @@ class App(QMainWindow):
             self.projection_window.visualizer.volume_multiplier = float(target_volume) / 100.0
             
         except Exception as e:
-            print(f"Błąd podczas zmiany pliku z przejściem: {e}")
+            print(f"Transition error: {e}")
             
         self.is_transitioning = False
 
     def toggle_play_pause(self):
-        # Metoda dla powiązania spacji - decyduje co zrobić w zalezności czy aktualnie gramy czy nie
         if self.is_playing:
             state = self.media_player.get_state()
             if state == vlc.State.Playing:
@@ -683,31 +629,26 @@ class App(QMainWindow):
             else:
                 self.media_player.play()
         else:
-            # W przypadku spacji i nie-odgrywania - po prostu odpal zaznaczony klip domyślny Play
             self.play_media()
 
     def stop_media(self):
-        # Try..except aby zapobiec wyjątkowi przy zatrzymywaniu gdy player nie jest poprawnie aktywowany
         try:
             self.media_player.stop()
             self.is_playing = False
         except Exception as e:
-            print(f"Błąd zatrzymywania: {e}")
+            print(f"Stop error: {e}")
 
     def fade_out(self):
         if not self.is_playing or getattr(self, 'is_transitioning', False):
             return
             
-        # Płynne zmniejszanie głośności - uruchamiamy w nowym wątku (threading) aby nie zamrozić GUI
         threading.Thread(target=self._fade_out_thread, daemon=True).start()
         
     def _fade_out_thread(self):
         self.is_transitioning = True
-        # Efekt Fade Out z ok. 100 do 0 w 2 sekundy (wykonasz 40 pętli po 0.05 sekundy co = 2.0 sek)
         steps = 40
         sleep_interval = 2.0 / steps
         
-        # Upewniamy się, z jakiego poziomu ściszamy - jeśli vlc zwróci -1 bierzemy z suwaka volumingu okna GUI
         current_volume = self.media_player.audio_get_volume()
         if current_volume < 0:
             current_volume = self.volume_slider.value()
@@ -735,10 +676,7 @@ class App(QMainWindow):
             self.projection_window.visualizer.volume_multiplier = float(current_volume) / 100.0
             time.sleep(sleep_interval)
             
-        # Gdy głośność w wątku dojdzie do zera zatrzymujemy materiał
         self.stop_media()
-        
-        # Przywracamy poziom głośności gracza multimedialnego do stanu nominalnego z panelu po stop
         self.media_player.audio_set_volume(self.volume_slider.value())
         self.media_player.video_set_adjust_float(vlc.VideoAdjustOption.Brightness, 1.0)
         self.is_transitioning = False
@@ -749,23 +687,21 @@ class App(QMainWindow):
         else:
             self.projection_window.showFullScreen()
         
-        # Przywróć aktywność okna operatora po zmianie trybu pełnoekranowego
         self.activateWindow()
         self.raise_()
 
     def toggle_projection_window(self):
         if self.projection_window.isVisible():
             self.projection_window.hide()
-            self.window_btn.setText("Pokaż okno projekcji")
+            self.window_btn.setText("Show Projection Window")
         else:
             self.projection_window.show()
-            self.window_btn.setText("Ukryj okno projekcji")
+            self.window_btn.setText("Hide Projection Window")
 
     def toggle_logo_overlay(self, checked):
         if checked:
             self.projection_window.set_mode_audio()
         else:
-            # Przywróć tryb w zależności od aktualnie odtwarzanego pliku
             selected_item = self.playlist.currentItem()
             if selected_item:
                 file_path = selected_item.text()
@@ -777,14 +713,7 @@ class App(QMainWindow):
             else:
                 self.projection_window.set_mode_video()
 
-
-    def toggle_logo_checkbox(self):
-        # Odwrócenie stanu checkboxa
-        new_state = not self.logo_checkbox.isChecked()
-        self.logo_checkbox.setChecked(new_state)
-
     def set_volume(self, value):
-        # Metoda dla manipulacji głośnością w locie po ruszeniu suwakiem
         try:
             self.media_player.audio_set_volume(value)
             self.projection_window.visualizer.volume_multiplier = value / 100.0
@@ -792,7 +721,6 @@ class App(QMainWindow):
             pass
 
     def closeEvent(self, event):
-        # Zamykanie okna projekcyjnego jeżeli operator zamknie główne okno nawigacji
         self.projection_window.close()
         super().closeEvent(event)
 
@@ -808,7 +736,6 @@ if __name__ == "__main__":
             font-size: 10pt;
         }
         
-        /* Buttons */
         QPushButton {
             background-color: #333333;
             border: 1px solid #454545;
@@ -830,7 +757,6 @@ if __name__ == "__main__":
             color: white;
         }
         
-        /* Playlist / ListWidget */
         QListWidget {
             background-color: #252526;
             border: 1px solid #3c3c3c;
@@ -851,7 +777,6 @@ if __name__ == "__main__":
             background-color: #2a2d2e;
         }
         
-        /* Sliders */
         QSlider::groove:horizontal {
             border: 1px solid #3c3c3c;
             height: 4px;
@@ -869,7 +794,6 @@ if __name__ == "__main__":
             background: #1c97ea;
         }
         
-        /* Checkbox */
         QCheckBox {
             spacing: 8px;
         }
@@ -883,15 +807,13 @@ if __name__ == "__main__":
         QCheckBox::indicator:checked {
             background-color: #007acc;
             border: 1px solid #007acc;
-            image: url(data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0id2hpdGUiIHdpZHRoPSIxMnB4IiBoZWlnaHQ9IjEycHgiPjxwYXRoIGQ9Ik05IDE2LjE3TDQuODMgMTJsLTEuNDIgMS40MUw5IDE5IDIxIDdsLTEuNDEtMS40MXoiLz48L3N2Zz4=);
+            image: url(data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0id2hpdGUiIHdpZHRoPSIxMnB4IiBoZWlnaHQ9IjEycHgiPjxwYXRoIGQ9Ik05IDE2LjE3TDQuODMgMTJsLTEuNDEgMS40MUw5IDE5IDIxIDdsLTEuNDEtMS40MXoiLz48L3N2Zz4=);
         }
         
-        /* Labels */
         QLabel {
             color: #bbbbbb;
         }
         
-        /* ScrollBar */
         QScrollBar:vertical {
             border: none;
             background: #1e1e1e;

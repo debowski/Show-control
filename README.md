@@ -2,6 +2,9 @@
 
 Aplikacja służąca do profesjonalnego zarządzania projekcją multimediów (wideo i audio) podczas wydarzeń, pokazów czy prezentacji. Program umożliwia operatorowi sterowanie listą odtwarzania na jednym ekranie, podczas gdy obraz właściwy wyświetlany jest na drugim monitorze lub projektorze.
 
+![Widok na panel operatora](operator.jpg)
+
+
 ## Funkcje główne
 - **Dwuekranowość**: Osobne okno sterowania dla operatora i okno projekcji dla widzów.
 - **Wsparcie formatów**: Obsługa wideo (MP4, MKV) oraz audio (MP3, WAV, FLAC itd.) dzięki silnikowi VLC.

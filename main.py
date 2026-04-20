@@ -254,11 +254,11 @@ class App(QMainWindow):
         self.load_proj_btn.clicked.connect(self.load_project)
         project_btn_layout.addWidget(self.load_proj_btn)
 
-        self.add_btn = QPushButton("Dodaj pliki (F2)")
+        self.add_btn = QPushButton("Dodaj pliki")
         self.add_btn.clicked.connect(self.add_files)
         project_btn_layout.addWidget(self.add_btn)
         
-        self.remove_btn = QPushButton("Usuń z listy (F3)")
+        self.remove_btn = QPushButton("Usuń z listy")
         self.remove_btn.clicked.connect(self.remove_file)
         project_btn_layout.addWidget(self.remove_btn)
         
@@ -296,7 +296,7 @@ class App(QMainWindow):
         self.fullscreen_btn.clicked.connect(self.toggle_projection_fullscreen)
         btn_layout.addWidget(self.fullscreen_btn)
         
-        self.window_btn = QPushButton("Ukryj okno (F10)")
+        self.window_btn = QPushButton("Ukryj okno")
         self.window_btn.clicked.connect(self.toggle_projection_window)
         btn_layout.addWidget(self.window_btn)
         
@@ -331,12 +331,8 @@ class App(QMainWindow):
         # Opcja sterowania pilotem (lewo/prawo zamiast góra/dół)
         self.remote_mode_checkbox = QCheckBox("Tryb pilota (lewo/prawo zamiast góra/dół)")
         self.remote_mode_checkbox.stateChanged.connect(self.update_shortcuts)
+        self.remote_mode_checkbox.setChecked(True)
         layout.addWidget(self.remote_mode_checkbox)
-        
-        # Opcja logo dla audio
-        self.vis_checkbox = QCheckBox("Pokaż obrazek (logo) dla plików audio")
-        self.vis_checkbox.setChecked(True)
-        layout.addWidget(self.vis_checkbox)
         
         # Opcje logo
         logo_layout = QHBoxLayout()
@@ -390,12 +386,6 @@ class App(QMainWindow):
         self.shortcut_next.activated.connect(self.play_next_file)
 
         # --- KLAWISZE FUNKCYJNE (F2 - F12) ---
-        self.f2_shortcut = QShortcut(QKeySequence(Qt.Key.Key_F2), self)
-        self.f2_shortcut.activated.connect(self.add_files)
-
-        self.f3_shortcut = QShortcut(QKeySequence(Qt.Key.Key_F3), self)
-        self.f3_shortcut.activated.connect(self.remove_file)
-
         self.f4_shortcut = QShortcut(QKeySequence(Qt.Key.Key_F4), self)
         self.f4_shortcut.activated.connect(self.play_media)
 
@@ -414,16 +404,20 @@ class App(QMainWindow):
         self.f9_shortcut = QShortcut(QKeySequence(Qt.Key.Key_F9), self)
         self.f9_shortcut.activated.connect(self.toggle_projection_fullscreen)
 
-        self.f10_shortcut = QShortcut(QKeySequence(Qt.Key.Key_F10), self)
-        self.f10_shortcut.activated.connect(self.toggle_projection_window)
-
         self.f11_shortcut = QShortcut(QKeySequence(Qt.Key.Key_F11), self)
         self.f11_shortcut.activated.connect(lambda: self.logo_overlay_btn.animateClick())
 
         self.f12_shortcut = QShortcut(QKeySequence(Qt.Key.Key_F12), self)
         self.f12_shortcut.activated.connect(self.save_project)
 
+        # Inicjalne ustawienie skrótów na podstawie domyślnego stanu checkboxa
+        self.update_shortcuts()
+
     def update_shortcuts(self):
+        # Sprawdź czy skróty zostały już zainicjalizowane
+        if not hasattr(self, 'shortcut_prev') or not hasattr(self, 'shortcut_next'):
+            return
+            
         # Aktualizacja przypisania klawiszy w zależności od trybu pilota
         if self.remote_mode_checkbox.isChecked():
             self.shortcut_prev.setKey(QKeySequence(Qt.Key.Key_Left))
@@ -588,7 +582,7 @@ class App(QMainWindow):
             self.projection_window.set_mode_audio()
         else:
             is_audio_only = file_path.lower().endswith(('.mp3', '.wav', '.flac', '.aac', '.ogg', '.wma', '.m4a'))
-            if getattr(self, 'vis_checkbox', None) and self.vis_checkbox.isChecked() and is_audio_only:
+            if is_audio_only:
                 self.projection_window.set_mode_audio()
             else:
                 self.projection_window.set_mode_video()
@@ -750,6 +744,10 @@ class App(QMainWindow):
             self.projection_window.showNormal()
         else:
             self.projection_window.showFullScreen()
+        
+        # Przywróć aktywność okna operatora po zmianie trybu pełnoekranowego
+        self.activateWindow()
+        self.raise_()
 
     def toggle_projection_window(self):
         if self.projection_window.isVisible():
@@ -768,7 +766,7 @@ class App(QMainWindow):
             if selected_item:
                 file_path = selected_item.text()
                 is_audio_only = file_path.lower().endswith(('.mp3', '.wav', '.flac', '.aac', '.ogg', '.wma', '.m4a'))
-                if is_audio_only and getattr(self, 'vis_checkbox', None) and self.vis_checkbox.isChecked():
+                if is_audio_only:
                     self.projection_window.set_mode_audio()
                 else:
                     self.projection_window.set_mode_video()

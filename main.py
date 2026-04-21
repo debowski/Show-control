@@ -22,7 +22,8 @@ from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                              QHBoxLayout, QPushButton, QSlider, QTableWidget, 
                              QTableWidgetItem, QHeaderView, QFileDialog, 
                              QMessageBox, QCheckBox, QStackedLayout, QLabel, 
-                             QFrame, QGroupBox, QAbstractItemView, QSizePolicy)
+                             QFrame, QGroupBox, QAbstractItemView, QSizePolicy,
+                             QLineEdit)
 from PyQt6.QtCore import Qt, QTimer, QSize
 from PyQt6.QtGui import QShortcut, QKeySequence, QPainter, QColor, QPixmap, QFont
 
@@ -120,7 +121,15 @@ APP_STYLESHEET = f"""
         color: white;
     }}
     
-    /* Suwaki */
+    /* Suwaki i Pola Tekstowe */
+    QLineEdit {{
+        background-color: {COLOR_BG_DARK};
+        border: 1px solid {COLOR_BORDER};
+        color: {COLOR_TEXT};
+        padding: 5px;
+        border-radius: 3px;
+    }}
+    
     QSlider::groove:horizontal {{
         border: 1px solid {COLOR_BORDER};
         height: 8px;
@@ -230,8 +239,17 @@ class PlaylistTable(QTableWidget):
         self.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Fixed)
         self.setColumnWidth(1, 100)
         self.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.setAlternatingRowColors(True)
+        
+        # Konfiguracja Drag & Drop
+        self.setDragEnabled(True)
         self.setAcceptDrops(True)
+        self.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
+        self.setDropIndicatorShown(True)
+        self.setDefaultDropAction(Qt.DropAction.MoveAction)
+        
         self.playing_row = -1
 
     def add_file(self, file_path, vlc_instance):
@@ -248,13 +266,11 @@ class PlaylistTable(QTableWidget):
         time_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
         self.setItem(row, 1, time_item)
         
-        # Pobieranie czasu trwania (asynchronicznie)
         threading.Thread(target=self._update_duration, args=(file_path, row, vlc_instance), daemon=True).start()
 
     def _update_duration(self, path, row, vlc_instance):
         media = vlc_instance.media_new(path)
         media.parse_with_options(vlc.MediaParseFlag.local, 0)
-        # Czekaj na sparsowanie (max 1s)
         for _ in range(10):
             if media.get_parsed_status() == vlc.MediaParsedStatus.done: break
             time.sleep(0.1)
@@ -265,20 +281,27 @@ class PlaylistTable(QTableWidget):
             m, s = divmod(s, 60)
             h, m = divmod(m, 60)
             time_str = f"{h:02d}:{m:02d}:{s:02d}" if h > 0 else f"{m:02d}:{s:02d}"
-            self.item(row, 1).setText(time_str)
+            if row < self.rowCount():
+                item = self.item(row, 1)
+                if item: item.setText(time_str)
 
     def set_playing_row(self, row):
-        if self.playing_row != -1:
+        # Wyczyść poprzednie podświetlenie
+        if self.playing_row != -1 and self.playing_row < self.rowCount():
             for c in range(2):
-                self.item(self.playing_row, c).setBackground(QColor("transparent"))
-                self.item(self.playing_row, c).setFont(QFont("Segoe UI", 10))
+                it = self.item(self.playing_row, c)
+                if it:
+                    it.setBackground(QColor("transparent"))
+                    it.setFont(QFont("Segoe UI", 10))
         
         self.playing_row = row
-        if self.playing_row != -1:
+        if self.playing_row != -1 and self.playing_row < self.rowCount():
             font = QFont("Segoe UI", 10, QFont.Weight.Bold)
             for c in range(2):
-                self.item(self.playing_row, c).setBackground(QColor("#094771"))
-                self.item(self.playing_row, c).setFont(font)
+                it = self.item(self.playing_row, c)
+                if it:
+                    it.setBackground(QColor("#094771"))
+                    it.setFont(font)
 
     def dragEnterEvent(self, event):
         if event.mimeData().hasUrls(): event.accept()
@@ -290,10 +313,61 @@ class PlaylistTable(QTableWidget):
 
     def dropEvent(self, event):
         if event.mimeData().hasUrls():
+            event.setDropAction(Qt.DropAction.CopyAction)
             event.accept()
             for url in event.mimeData().urls():
                 path = url.toLocalFile()
-                if os.path.isfile(path): self.add_file(path, self.parent().vlc_instance)
+                if os.path.isfile(path):
+                    self.add_file(path, self.window().vlc_instance)
+        else:
+            # Ręczne przenoszenie wierszy dla zachowania integralności danych
+            source_row = self.currentRow()
+            dest_row = self.rowAt(event.position().toPoint().y())
+            
+            if dest_row == -1: 
+                dest_row = self.rowCount() - 1
+
+            if source_row != -1 and source_row != dest_row:
+                # 1. Sprawdź czy przenoszony wiersz jest tym odtwarzanym
+                is_playing_moved = (source_row == self.playing_row)
+                old_playing_row = self.playing_row
+                
+                # 2. Pobierz elementy z wiersza źródłowego (takeItem zapobiega usunięciu)
+                row_items = []
+                for col in range(self.columnCount()):
+                    row_items.append(self.takeItem(source_row, col))
+                
+                # 3. Usuń stary wiersz i wstaw nowy w miejscu docelowym
+                self.removeRow(source_row)
+                self.insertRow(dest_row)
+                
+                # 4. Wstaw elementy do nowego wiersza
+                for col, item in enumerate(row_items):
+                    if item:
+                        self.setItem(dest_row, col, item)
+                
+                # 5. Aktualizacja indeksu odtwarzania
+                if is_playing_moved:
+                    self.playing_row = dest_row
+                elif old_playing_row != -1:
+                    if source_row < old_playing_row <= dest_row:
+                        self.playing_row -= 1
+                    elif dest_row <= old_playing_row < source_row:
+                        self.playing_row += 1
+                
+                # 6. Odśwież wyróżnienie
+                if self.playing_row != -1:
+                    font = QFont("Segoe UI", 10, QFont.Weight.Bold)
+                    for c in range(2):
+                        it = self.item(self.playing_row, c)
+                        if it:
+                            it.setBackground(QColor("#094771"))
+                            it.setFont(font)
+                
+                self.setCurrentCell(dest_row, 0)
+                event.accept()
+            else:
+                event.ignore()
 
 class App(QMainWindow):
     def __init__(self):
@@ -331,7 +405,6 @@ class App(QMainWindow):
         
         # --- GÓRNY PASEK ZARZĄDZANIA ---
         top_bar = QHBoxLayout()
-        
         mgmt_left = QHBoxLayout()
         self.add_btn = QPushButton("✚ Dodaj pliki")
         self.add_btn.setToolTip("Dodaj nowe pliki do listy")
@@ -357,6 +430,15 @@ class App(QMainWindow):
         top_bar.addLayout(mgmt_right)
         layout.addLayout(top_bar)
 
+        # --- PASEK WYSZUKIWANIA ---
+        search_layout = QHBoxLayout()
+        self.search_input = QLineEdit()
+        self.search_input.setPlaceholderText("🔍 Wyszukaj utwór po tytule...")
+        self.search_input.setClearButtonEnabled(True)
+        self.search_input.textChanged.connect(self.filter_playlist)
+        search_layout.addWidget(self.search_input)
+        layout.addLayout(search_layout)
+
         # --- LISTA PLIKÓW ---
         self.playlist = PlaylistTable(self)
         self.playlist.itemDoubleClicked.connect(lambda: self.play_media())
@@ -365,8 +447,6 @@ class App(QMainWindow):
         # --- SEKCJA TRANSPORTU ---
         transport_frame = QGroupBox("Kontrola Transportu")
         trans_layout = QVBoxLayout(transport_frame)
-        
-        # Czas i Progress
         self.progress_slider = QSlider(Qt.Orientation.Horizontal)
         self.progress_slider.setRange(0, 1000)
         self.progress_slider.setFixedHeight(25)
@@ -377,11 +457,9 @@ class App(QMainWindow):
         self.time_label = QLabel("00:00 / 00:00 (Pozostało: -00:00)")
         self.time_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.time_label.setStyleSheet(f"font-size: 13pt; font-weight: bold; color: {COLOR_TEXT};")
-        
         trans_layout.addWidget(self.progress_slider)
         trans_layout.addWidget(self.time_label)
         
-        # Przyciski
         btns_grid = QHBoxLayout()
         btns_grid.setSpacing(5)
         self.prev_btn = QPushButton("⏮ Poprzedni")
@@ -407,14 +485,11 @@ class App(QMainWindow):
         for btn in [self.prev_btn, self.play_btn, self.stop_btn, self.next_btn]:
             btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
             btns_grid.addWidget(btn)
-            
         trans_layout.addLayout(btns_grid)
         layout.addWidget(transport_frame)
 
-        # --- DOLNY PANEL (GRUPOWANIE) ---
+        # --- DOLNY PANEL ---
         bottom_panel = QHBoxLayout()
-        
-        # Widok i Efekty
         view_group = QGroupBox("Widok i Efekty")
         view_layout = QVBoxLayout(view_group)
         self.fade_btn = QPushButton("✨ Fade Out")
@@ -432,7 +507,6 @@ class App(QMainWindow):
         view_layout.addWidget(self.fullscreen_btn)
         view_layout.addWidget(self.logo_overlay_btn)
         
-        # Audio i Logo
         audio_group = QGroupBox("Audio i Logo")
         audio_layout = QVBoxLayout(audio_group)
         self.vol_label = QLabel("Głośność: 100%")
@@ -448,7 +522,6 @@ class App(QMainWindow):
         audio_layout.addStretch()
         audio_layout.addWidget(self.logo_btn)
         
-        # Ustawienia i Inne
         settings_group = QGroupBox("Ustawienia")
         set_layout = QVBoxLayout(settings_group)
         self.autoplay_checkbox = QCheckBox("Autoodtwarzanie")
@@ -462,7 +535,6 @@ class App(QMainWindow):
         set_layout.addWidget(self.remote_checkbox)
         set_layout.addWidget(self.logo_audio_checkbox)
         
-        # Przycisk Ukryj Okno (Osobno)
         hide_col = QVBoxLayout()
         self.window_btn = QPushButton("👁 Ukryj Okno")
         self.window_btn.setObjectName("HideBtn")
@@ -487,12 +559,10 @@ class App(QMainWindow):
         QShortcut(QKeySequence(Qt.Key.Key_Delete), self.playlist).activated.connect(self.remove_file)
         for key in [Qt.Key.Key_Return, Qt.Key.Key_Enter]:
             QShortcut(QKeySequence(key), self.playlist).activated.connect(self.play_media)
-
         self.sc_nav_prev = QShortcut(QKeySequence(Qt.Key.Key_Up), self)
         self.sc_nav_prev.activated.connect(self.play_previous_file)
         self.sc_nav_next = QShortcut(QKeySequence(Qt.Key.Key_Down), self)
         self.sc_nav_next.activated.connect(self.play_next_file)
-        
         f_keys = {Qt.Key.Key_F4: self.play_media, Qt.Key.Key_F5: self.stop_media,
                   Qt.Key.Key_F6: self.play_previous_file, Qt.Key.Key_F7: self.play_next_file,
                   Qt.Key.Key_F8: self.fade_out, Qt.Key.Key_F9: self.toggle_projection_fullscreen,
@@ -526,7 +596,6 @@ class App(QMainWindow):
             if state in (vlc.State.Ended, vlc.State.Stopped):
                 self.is_playing = False
                 if state == vlc.State.Ended and self.autoplay_checkbox.isChecked(): self.play_next_file()
-            
             if not self.user_is_seeking:
                 pos = self.media_player.get_position()
                 if pos >= 0: self.progress_slider.setValue(int(pos * 1000))
@@ -550,12 +619,10 @@ class App(QMainWindow):
         if row == -1 or self.is_transitioning: return
         path = self.playlist.item(row, 0).data(Qt.ItemDataRole.UserRole)
         self.playlist.set_playing_row(row)
-        
         if self.logo_overlay_btn.isChecked(): self.projection_window.set_mode_audio()
         else:
             is_audio = path.lower().endswith(('.mp3', '.wav', '.flac', '.aac', '.ogg', '.m4a'))
             self.projection_window.set_mode_audio() if is_audio else self.projection_window.set_mode_video()
-            
         threading.Thread(target=self._transition_thread, args=(path,), daemon=True).start()
 
     def _transition_thread(self, path):
@@ -570,14 +637,12 @@ class App(QMainWindow):
                     self.media_player.video_set_adjust_float(vlc.VideoAdjustOption.Brightness, max(0.0, bri))
                     time.sleep(0.05)
                 self.media_player.stop()
-            
             media = self.vlc_instance.media_new(path)
             self.media_player.set_media(media)
             self.media_player.play()
             self.is_playing = True
             time.sleep(0.2)
             self.media_player.video_set_adjust_int(vlc.VideoAdjustOption.Enable, 1)
-            
             vol, bri = 0, 0.0
             for _ in range(20):
                 vol += (target_vol / 20); bri += 0.05
@@ -636,25 +701,25 @@ class App(QMainWindow):
         self.projection_window.hide() if self.projection_window.isVisible() else self.projection_window.show()
 
     def toggle_logo_overlay(self, checked):
-        if checked:
-            self.projection_window.set_mode_audio()
+        if checked: self.projection_window.set_mode_audio()
         else:
-            # Restore mode based on current file type without restarting playback
             row = self.playlist.currentRow()
             if row != -1:
                 path = self.playlist.item(row, 0).data(Qt.ItemDataRole.UserRole)
                 is_audio = path.lower().endswith(('.mp3', '.wav', '.flac', '.aac', '.ogg', '.m4a'))
-                if is_audio:
-                    self.projection_window.set_mode_audio()
-                else:
-                    self.projection_window.set_mode_video()
-            else:
-                self.projection_window.set_mode_video()
+                self.projection_window.set_mode_audio() if is_audio else self.projection_window.set_mode_video()
+            else: self.projection_window.set_mode_video()
 
     def update_logo_visibility(self): self.projection_window.visualizer.show_logo = self.logo_audio_checkbox.isChecked()
     def set_position(self, v): self.media_player.set_position(v / 1000.0)
     def slider_released(self): self.user_is_seeking = False; self.set_position(self.progress_slider.value())
     
+    def filter_playlist(self, text):
+        search_text = text.lower()
+        for row in range(self.playlist.rowCount()):
+            item = self.playlist.item(row, 0)
+            if item: self.playlist.setRowHidden(row, search_text not in item.text().lower())
+
     def save_project(self):
         path, _ = QFileDialog.getSaveFileName(self, "Zapisz", "", "JSON (*.json)")
         if path:

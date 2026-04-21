@@ -236,6 +236,12 @@ class ProjectionWindow(QWidget):
         else:
             self.resize(800, 600)
 
+    def closeEvent(self, event):
+        # Zamiast całkowicie kasować okno podglądu przy "X", po prostu je chowamy.
+        # Zapobiega to utracie HWND.
+        event.ignore()
+        self.hide()
+
 class PlaylistTable(QTableWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -708,10 +714,19 @@ class App(QMainWindow):
     def toggle_projection_fullscreen(self):
         if self.projection_window.isFullScreen(): self.projection_window.showNormal()
         else: self.projection_window.showFullScreen()
+        
+        if sys.platform.startswith("win"):
+            self.media_player.set_hwnd(int(self.projection_window.video_widget.winId()))
+            
         self.activateWindow()
 
     def toggle_projection_window(self):
-        self.projection_window.hide() if self.projection_window.isVisible() else self.projection_window.show()
+        if self.projection_window.isVisible():
+            self.projection_window.hide()
+        else:
+            self.projection_window.show()
+            if sys.platform.startswith("win"):
+                self.media_player.set_hwnd(int(self.projection_window.video_widget.winId()))
 
     def toggle_logo_overlay(self, checked):
         if checked: self.projection_window.set_mode_audio()

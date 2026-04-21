@@ -1,8 +1,8 @@
-# Show Control - Operator & Projection
+# Show Control - Operator & Projection v2.0
 
 Aplikacja służąca do profesjonalnego zarządzania projekcją multimediów (wideo i audio) podczas wydarzeń, pokazów czy prezentacji. Program umożliwia operatorowi sterowanie listą odtwarzania na jednym ekranie, podczas gdy obraz właściwy wyświetlany jest na drugim monitorze lub projektorze.
 
-![Widok na panel operatora](operator.jpg)
+![Widok na panel operatora v2.0](aplikacja.png)
 
 
 ## Funkcje główne
@@ -65,3 +65,9 @@ Aplikacja służąca do profesjonalnego zarządzania projekcją multimediów (wi
 ## Rozwiązywanie problemów
 - **Błąd biblioteki VLC**: Upewnij się, że masz zainstalowany odtwarzacz VLC Media Player. Jeśli używasz 64-bitowego Pythona, VLC również musi być w wersji 64-bitowej.
 - **Brak obrazu na drugim ekranie**: Sprawdź ustawienia ekranów w systemie operacyjnym (tryb "Rozszerz te ekrany").
+
+## Licencja
+
+Ten program jest wolnym oprogramowaniem; możesz go rozprowadzać dalej i/lub modyfikować na warunkach Powszechnej Licencji Publicznej GNU (GPL), wydanej przez Fundację Wolnego Oprogramowania - wersja 3. licencji.
+
+Szczegóły znajdują się w pliku `LICENSE` dołączonym do tego repozytorium.

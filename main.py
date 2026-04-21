@@ -1,5 +1,5 @@
 # Show-control Version 2.0
-# Copyright (C) 2026 Piotr
+# Copyright (C) 2026 Piotr Dębowski
 #
 # Professional Broadcast Edition
 

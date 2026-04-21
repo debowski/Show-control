@@ -149,6 +149,20 @@ APP_STYLESHEET = f"""
         margin: -6px 0;
         border-radius: 9px;
     }}
+    
+    QSlider::groove:vertical {{
+        border: 1px solid {COLOR_BORDER};
+        width: 8px;
+        background: {COLOR_BG_DARK};
+        border-radius: 4px;
+    }}
+    QSlider::handle:vertical {{
+        background: {COLOR_ACCENT};
+        width: 18px;
+        height: 18px;
+        margin: 0 -6px;
+        border-radius: 9px;
+    }}
 """
 
 class AudioVisualizer(QWidget):
@@ -395,8 +409,9 @@ class App(QMainWindow):
         self.setMinimumSize(900, 700)
         
         try:
-            self.vlc_instance = vlc.Instance('--no-xlib', '--quiet', '--vout=direct3d9', '--video-filter=adjust')
+            self.vlc_instance = vlc.Instance('--no-xlib', '--quiet', '--vout=direct3d11', '--aout=waveout', '--video-filter=adjust')
             self.media_player = self.vlc_instance.media_player_new()
+            self.media_player.audio_set_volume(0) # Konfiguracja zabezpieczająca na start
             self.media_player.video_set_adjust_int(vlc.VideoAdjustOption.Enable, 1)
         except Exception as e:
             QMessageBox.critical(self, "VLC Error", f"Błąd VLC: {e}")
@@ -445,6 +460,22 @@ class App(QMainWindow):
         mgmt_right.addWidget(self.save_proj_btn)
         
         top_bar.addLayout(mgmt_left)
+        top_bar.addStretch()
+        
+        self.logo_btn = QPushButton("📁 Wybierz Logo")
+        self.logo_btn.setToolTip("Wybierz grafikę do wyświetlania")
+        self.logo_btn.clicked.connect(self.select_logo)
+        
+        self.window_btn = QPushButton("👁 Ukryj Okno")
+        self.window_btn.setObjectName("HideBtn")
+        self.window_btn.setToolTip("Ukryj lub pokaż okno projekcji")
+        self.window_btn.clicked.connect(self.toggle_projection_window)
+        
+        mgmt_center = QHBoxLayout()
+        mgmt_center.addWidget(self.logo_btn)
+        mgmt_center.addWidget(self.window_btn)
+        top_bar.addLayout(mgmt_center)
+        
         top_bar.addStretch()
         top_bar.addLayout(mgmt_right)
         layout.addLayout(top_bar)
@@ -526,20 +557,23 @@ class App(QMainWindow):
         view_layout.addWidget(self.fullscreen_btn)
         view_layout.addWidget(self.logo_overlay_btn)
         
-        audio_group = QGroupBox("Audio i Logo")
-        audio_layout = QVBoxLayout(audio_group)
-        self.vol_label = QLabel("Głośność: 100%")
-        self.volume_slider = QSlider(Qt.Orientation.Horizontal)
+        audio_group = QGroupBox("Audio")
+        audio_main_layout = QHBoxLayout(audio_group)
+        
+        slider_layout = QVBoxLayout()
+        self.vol_label = QLabel("100%")
+        self.vol_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.volume_slider = QSlider(Qt.Orientation.Vertical)
         self.volume_slider.setRange(0, 100)
         self.volume_slider.setValue(100)
         self.volume_slider.valueChanged.connect(self.set_volume)
-        self.logo_btn = QPushButton("📁 Wybierz plik logo")
-        self.logo_btn.setToolTip("Wybierz grafikę do wyświetlania")
-        self.logo_btn.clicked.connect(self.select_logo)
-        audio_layout.addWidget(self.vol_label)
-        audio_layout.addWidget(self.volume_slider)
-        audio_layout.addStretch()
-        audio_layout.addWidget(self.logo_btn)
+        
+        slider_layout.addWidget(self.vol_label)
+        slider_layout.addWidget(self.volume_slider, alignment=Qt.AlignmentFlag.AlignHCenter)
+        
+        audio_main_layout.addStretch()
+        audio_main_layout.addLayout(slider_layout)
+        audio_main_layout.addStretch()
         
         settings_group = QGroupBox("Ustawienia")
         set_layout = QVBoxLayout(settings_group)
@@ -553,19 +587,11 @@ class App(QMainWindow):
         set_layout.addWidget(self.autoplay_checkbox)
         set_layout.addWidget(self.remote_checkbox)
         set_layout.addWidget(self.logo_audio_checkbox)
-        
-        hide_col = QVBoxLayout()
-        self.window_btn = QPushButton("👁 Ukryj Okno")
-        self.window_btn.setObjectName("HideBtn")
-        self.window_btn.setToolTip("Ukryj lub pokaż okno projekcji")
-        self.window_btn.clicked.connect(self.toggle_projection_window)
-        hide_col.addStretch()
-        hide_col.addWidget(self.window_btn)
+        set_layout.addStretch()
         
         bottom_panel.addWidget(view_group, stretch=1)
         bottom_panel.addWidget(audio_group, stretch=1)
         bottom_panel.addWidget(settings_group, stretch=1)
-        bottom_panel.addLayout(hide_col)
         layout.addLayout(bottom_panel)
 
         self.init_shortcuts()
@@ -601,7 +627,7 @@ class App(QMainWindow):
     def set_volume(self, value):
         self.media_player.audio_set_volume(value)
         self.projection_window.visualizer.volume_multiplier = value / 100.0
-        self.vol_label.setText(f"Głośność: {value}%")
+        self.vol_label.setText(f"{value}%")
 
     def format_time(self, ms):
         s, _ = divmod(ms, 1000)
@@ -649,23 +675,43 @@ class App(QMainWindow):
         target_vol = self.volume_slider.value()
         try:
             if self.is_playing:
-                vol, bri = self.media_player.audio_get_volume(), 1.0
-                for _ in range(20):
-                    vol -= (vol / 20); bri -= 0.05
-                    self.media_player.audio_set_volume(int(max(0, vol)))
+                has_audio = (self.media_player.audio_get_track_count() > 0)
+                start_vol = self.media_player.audio_get_volume() if has_audio else 0
+                for i in range(20):
+                    vol = start_vol * (1 - (i + 1) / 20.0)
+                    bri = 1.0 - ((i + 1) * 0.05)
+                    if has_audio: self.media_player.audio_set_volume(int(max(0, vol)))
                     self.media_player.video_set_adjust_float(vlc.VideoAdjustOption.Brightness, max(0.0, bri))
                     time.sleep(0.05)
+                # Upewniamy się że zeszło do magicznego zera. ŻADNEGO UŻYWANIA MUTE! (Mute popuje na Win32)
+                if has_audio:
+                    self.media_player.audio_set_volume(0)
+                
+                self.media_player.pause() # Zawsze warto zapauzować, żeby klatka zgasła lub dźwięk zamknął się gracefully
+                time.sleep(0.1)
                 self.media_player.stop()
+                
             media = self.vlc_instance.media_new(path)
             self.media_player.set_media(media)
+            # Odtwarzacz zachowuje status głośności = 0 z poprzedniego zjazdu na dół! Więc ułamki sekundy nic nam nie hukną.
             self.media_player.play()
             self.is_playing = True
-            time.sleep(0.2)
+            
+            # Poczekaj aż faktycznie zacznie odtwarzać (nie tylko przygotowuje bufor)
+            for _ in range(50):
+                if self.media_player.get_state() == vlc.State.Playing:
+                    break
+                time.sleep(0.01)
+                
+            time.sleep(0.1) # Dodatkowy bufor na ustabilizowanie dekodera wideo
             self.media_player.video_set_adjust_int(vlc.VideoAdjustOption.Enable, 1)
-            vol, bri = 0, 0.0
-            for _ in range(20):
-                vol += (target_vol / 20); bri += 0.05
-                self.media_player.audio_set_volume(int(min(target_vol, vol)))
+            
+            has_audio = (self.media_player.audio_get_track_count() > 0)
+            
+            for i in range(20):
+                vol = target_vol * ((i + 1) / 20.0)
+                bri = (i + 1) * 0.05
+                if has_audio: self.media_player.audio_set_volume(int(min(target_vol, vol)))
                 self.media_player.video_set_adjust_float(vlc.VideoAdjustOption.Brightness, min(1.0, bri))
                 time.sleep(0.02)
         except: pass
@@ -677,14 +723,17 @@ class App(QMainWindow):
 
     def _fade_out_thread(self):
         self.is_transitioning = True
-        vol, bri = self.media_player.audio_get_volume(), 1.0
+        has_audio = (self.media_player.audio_get_track_count() > 0)
+        start_vol = self.media_player.audio_get_volume() if has_audio else 0
         for i in range(40):
-            vol -= (vol / (40 - i)); bri -= 0.025
-            self.media_player.audio_set_volume(int(vol))
+            vol = start_vol * (1 - (i + 1) / 40.0)
+            bri = 1.0 - ((i + 1) * 0.025)
+            if has_audio: self.media_player.audio_set_volume(int(max(0, vol)))
             self.media_player.video_set_adjust_float(vlc.VideoAdjustOption.Brightness, max(0.0, bri))
             time.sleep(0.05)
+            
         self.stop_media()
-        self.media_player.audio_set_volume(self.volume_slider.value())
+        
         self.media_player.video_set_adjust_float(vlc.VideoAdjustOption.Brightness, 1.0)
         self.is_transitioning = False
 
@@ -693,6 +742,18 @@ class App(QMainWindow):
         else: self.play_media()
 
     def stop_media(self):
+        if self.media_player.get_state() in (vlc.State.Playing, vlc.State.Paused):
+            # Odpinamy wideo przed audio (na czarny ekran) przed stopem
+            self.media_player.video_set_adjust_float(vlc.VideoAdjustOption.Brightness, 0.0)
+            
+            # Zerujemy odtwarzacz matematycznie, BEZ wyciszania gniazda sprzętowego
+            has_audio = (self.media_player.audio_get_track_count() > 0)
+            if has_audio:
+                self.media_player.audio_set_volume(0)
+                
+            self.media_player.pause() # Ściek buforów wejściowych
+            time.sleep(0.05) 
+            
         self.media_player.stop()
         self.is_playing = False
         self.playlist.set_playing_row(-1)

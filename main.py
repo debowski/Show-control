@@ -10,6 +10,8 @@ import threading
 import json
 import random
 import math
+import ctypes
+from ctypes import wintypes
 
 try:
     import vlc
@@ -25,7 +27,7 @@ from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                              QFrame, QGroupBox, QAbstractItemView, QSizePolicy,
                              QLineEdit)
 from PyQt6.QtCore import Qt, QTimer, QSize
-from PyQt6.QtGui import QShortcut, QKeySequence, QPainter, QColor, QPixmap, QFont
+from PyQt6.QtGui import QShortcut, QKeySequence, QPainter, QColor, QPixmap, QFont, QPen
 
 # --- STAŁE KOLORYSTYCZNE I STYLIZACJA ---
 COLOR_BG_MAIN = "#1e1e1e"
@@ -209,6 +211,78 @@ class AudioVisualizer(QWidget):
         if self.show_logo and self.logo_pixmap and not self.logo_pixmap.isNull():
             scaled = self.logo_pixmap.scaled(w, h, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
             painter.drawPixmap(int((w - scaled.width())/2), int((h - scaled.height())/2), scaled)
+
+class DWM_THUMBNAIL_PROPERTIES(ctypes.Structure):
+    _fields_ = [
+        ('dwFlags', wintypes.DWORD),
+        ('rcDestination', wintypes.RECT),
+        ('rcSource', wintypes.RECT),
+        ('opacity', wintypes.BYTE),
+        ('fVisible', wintypes.BOOL),
+        ('fSourceClientAreaOnly', wintypes.BOOL),
+    ]
+
+_dwmapi = None
+if sys.platform.startswith("win"):
+    try:
+        _dwmapi = ctypes.windll.dwmapi
+    except Exception:
+        pass
+
+class LivePreviewWidget(QFrame):
+    def __init__(self, source_window, parent=None):
+        super().__init__(parent)
+        self.source_window = source_window
+        self.thumb_handle = ctypes.c_void_p()
+        
+        self.setMinimumSize(256, 144)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        
+        # Transparent background allows DWM composition to show through natively
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        
+        self.status = QLabel("Podgląd NA ŻYWO", self)
+        self.status.setStyleSheet("color: rgba(255, 255, 255, 200); font-weight: bold; background: transparent;")
+        self.status.move(8, 8)
+        
+        self.refresh_timer = QTimer(self)
+        self.refresh_timer.timeout.connect(self.update_thumbnail)
+        self.refresh_timer.start(500)
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        if _dwmapi and not self.thumb_handle:
+            # Rejestrujemy miniatury z głównego okna projekcji
+            res = _dwmapi.DwmRegisterThumbnail(int(self.winId()), int(self.source_window.winId()), ctypes.byref(self.thumb_handle))
+            if res == 0:
+                self.update_thumbnail()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self.update_thumbnail()
+        
+    def update_thumbnail(self):
+        if _dwmapi and self.thumb_handle and self.width() > 10:
+            props = DWM_THUMBNAIL_PROPERTIES()
+            # DWM_TNP_VISIBLE | DWM_TNP_RECTDESTINATION | DWM_TNP_OPACITY
+            props.dwFlags = 0x8 | 0x1 | 0x4
+            props.fVisible = True
+            props.opacity = 255
+            props.rcDestination = wintypes.RECT(0, 0, self.width(), self.height())
+            _dwmapi.DwmUpdateThumbnailProperties(self.thumb_handle, ctypes.byref(props))
+            
+    def hideEvent(self, event):
+        super().hideEvent(event)
+        if _dwmapi and self.thumb_handle:
+            _dwmapi.DwmUnregisterThumbnail(self.thumb_handle)
+            self.thumb_handle = ctypes.c_void_p()
+            
+    def paintEvent(self, event):
+        super().paintEvent(event)
+        # Rysujemy tylko samą obramówkę nad przezroczystym tłem, by nie mazać miniatury!
+        painter = QPainter(self)
+        painter.setPen(QPen(QColor(60, 60, 60), 2))
+        painter.drawRect(1, 1, self.width() - 2, self.height() - 2)
 
 class ProjectionWindow(QWidget):
     def __init__(self):
@@ -571,9 +645,12 @@ class App(QMainWindow):
         slider_layout.addWidget(self.vol_label)
         slider_layout.addWidget(self.volume_slider, alignment=Qt.AlignmentFlag.AlignHCenter)
         
-        audio_main_layout.addStretch()
+        self.live_preview = LivePreviewWidget(self.projection_window)
+        
+        audio_main_layout.addWidget(self.live_preview, stretch=6)
+        audio_main_layout.addStretch(1)
         audio_main_layout.addLayout(slider_layout)
-        audio_main_layout.addStretch()
+        audio_main_layout.addStretch(1)
         
         settings_group = QGroupBox("Ustawienia")
         set_layout = QVBoxLayout(settings_group)

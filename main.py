@@ -71,6 +71,12 @@ APP_STYLESHEET = f"""
     }}
     QPushButton:hover {{ background-color: #3e3e42; }}
     QPushButton:pressed {{ background-color: {COLOR_ACCENT}; }}
+    QPushButton:checked {{ 
+        background-color: {COLOR_ACCENT}; 
+        color: white; 
+        font-weight: bold; 
+        border: 1px solid #005a9e; 
+    }}
     
     QPushButton#PlayBtn {{ 
         background-color: {COLOR_PLAY}; 
@@ -320,42 +326,52 @@ class PlaylistTable(QTableWidget):
                 if os.path.isfile(path):
                     self.add_file(path, self.window().vlc_instance)
         else:
-            # Ręczne przenoszenie wierszy dla zachowania integralności danych
+            # Ustaw akcję Ignore, żeby Qt samo nie skasowało przeciągniętego elementu
+            event.setDropAction(Qt.DropAction.IgnoreAction)
+            event.accept()
+            
             source_row = self.currentRow()
-            dest_row = self.rowAt(event.position().toPoint().y())
+            pos = event.position().toPoint()
+            dest_row = self.rowAt(pos.y())
+            drop_indicator = self.dropIndicatorPosition()
             
             if dest_row == -1: 
-                dest_row = self.rowCount() - 1
+                dest_row = self.rowCount()
+            elif drop_indicator == QAbstractItemView.DropIndicatorPosition.BelowItem:
+                dest_row += 1
 
-            if source_row != -1 and source_row != dest_row:
-                # 1. Sprawdź czy przenoszony wiersz jest tym odtwarzanym
-                is_playing_moved = (source_row == self.playing_row)
+            insert_row = dest_row
+            if source_row < dest_row:
+                insert_row -= 1
+
+            if source_row != -1 and source_row != insert_row:
                 old_playing_row = self.playing_row
+                is_playing_moved = (source_row == old_playing_row)
                 
-                # 2. Pobierz elementy z wiersza źródłowego (takeItem zapobiega usunięciu)
+                # Pobierz elementy z wiersza źródłowego (takeItem zapobiega usunięciu ich z pamięci)
                 row_items = []
                 for col in range(self.columnCount()):
                     row_items.append(self.takeItem(source_row, col))
                 
-                # 3. Usuń stary wiersz i wstaw nowy w miejscu docelowym
+                # Usuń stary wiersz i wstaw nowy w miejscu docelowym
                 self.removeRow(source_row)
-                self.insertRow(dest_row)
+                self.insertRow(insert_row)
                 
-                # 4. Wstaw elementy do nowego wiersza
+                # Wstaw elementy do nowego wiersza
                 for col, item in enumerate(row_items):
                     if item:
-                        self.setItem(dest_row, col, item)
+                        self.setItem(insert_row, col, item)
                 
-                # 5. Aktualizacja indeksu odtwarzania
+                # Aktualizacja indeksu odtwarzania
                 if is_playing_moved:
-                    self.playing_row = dest_row
+                    self.playing_row = insert_row
                 elif old_playing_row != -1:
-                    if source_row < old_playing_row <= dest_row:
+                    if source_row < old_playing_row and insert_row >= old_playing_row:
                         self.playing_row -= 1
-                    elif dest_row <= old_playing_row < source_row:
+                    elif source_row > old_playing_row and insert_row <= old_playing_row:
                         self.playing_row += 1
                 
-                # 6. Odśwież wyróżnienie
+                # Odśwież wyróżnienie dla wiersza odtwarzanego
                 if self.playing_row != -1:
                     font = QFont("Segoe UI", 10, QFont.Weight.Bold)
                     for c in range(2):
@@ -364,10 +380,7 @@ class PlaylistTable(QTableWidget):
                             it.setBackground(QColor("#094771"))
                             it.setFont(font)
                 
-                self.setCurrentCell(dest_row, 0)
-                event.accept()
-            else:
-                event.ignore()
+                self.setCurrentCell(insert_row, 0)
 
 class App(QMainWindow):
     def __init__(self):

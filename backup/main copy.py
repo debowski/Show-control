@@ -703,15 +703,7 @@ class App(QMainWindow):
         for f in files: self.playlist.add_file(f, self.vlc_instance)
 
     def remove_file(self):
-        # Pobieramy unikalne indeksy wierszy z zaznaczonych elementów
-        selected_rows = set(item.row() for item in self.playlist.selectedItems())
-        # Usuwamy wiersze w kolejności malejącej, aby nie zmieniać indeksów pozostałych do usunięcia wierszy
-        for row in sorted(selected_rows, reverse=True):
-            self.playlist.removeRow(row)
-        
-        # Jeśli lista jest pusta, resetujemy status odtwarzania
-        if self.playlist.rowCount() == 0:
-            self.playlist.set_playing_row(-1)
+        for item in self.playlist.selectedItems(): self.playlist.removeRow(item.row())
 
     def play_media(self):
         row = self.playlist.currentRow()

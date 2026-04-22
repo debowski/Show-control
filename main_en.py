@@ -181,12 +181,9 @@ class AudioVisualizer(QWidget):
             scaled = self.logo_pixmap.scaled(w, h, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
             painter.drawPixmap(int((w - scaled.width())/2), int((h - scaled.height())/2), scaled)
 
-class ProjectionWindow(QWidget):
-    def __init__(self):
-        super().__init__()
-        self.setWindowFlags(Qt.WindowType.Window)
-        self.setWindowTitle("Projection Output")
-        self.setStyleSheet("background-color: black;")
+class VideoDisplay(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
         self.video_widget = QWidget()
         self.vis_container = QWidget()
         vis_layout = QVBoxLayout(self.vis_container)
@@ -205,9 +202,33 @@ class ProjectionWindow(QWidget):
     def set_mode_audio(self):
         self.stacked_layout.setCurrentWidget(self.vis_container)
         self.visualizer.start()
+
+class ProjectionWindow(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.setWindowFlags(Qt.WindowType.Window)
+        self.setWindowTitle("Projection Output")
+        self.setStyleSheet("background-color: black;")
+        
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        self.display = VideoDisplay()
+        layout.addWidget(self.display)
+        
+        # Aliases for backward compatibility
+        self.video_widget = self.display.video_widget
+        self.visualizer = self.display.visualizer
+
+    def set_mode_video(self):
+        self.display.set_mode_video()
+        
+    def set_mode_audio(self):
+        self.display.set_mode_audio()
         
     def mouseDoubleClickEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
+            if self.isFullScreen(): self.showNormal()
+            else: self.showFullScreen()
             if self.isFullScreen(): self.showNormal()
             else: self.showFullScreen()
 
@@ -300,9 +321,18 @@ class App(QMainWindow):
         self.setMinimumSize(900, 700)
         
         try:
-            self.vlc_instance = vlc.Instance('--no-xlib', '--quiet', '--vout=direct3d9', '--video-filter=adjust')
+            self.vlc_instance = vlc.Instance('--no-xlib', '--quiet', '--vout=direct3d11', '--aout=waveout', '--video-filter=adjust')
+            
+            # Main Player (Projection)
             self.media_player = self.vlc_instance.media_player_new()
+            self.media_player.audio_set_volume(0) 
             self.media_player.video_set_adjust_int(vlc.VideoAdjustOption.Enable, 1)
+            
+            # Preview Player (Operator)
+            self.preview_player = self.vlc_instance.media_player_new()
+            self.preview_player.audio_set_volume(0) # Preview is always muted
+            self.preview_player.video_set_adjust_int(vlc.VideoAdjustOption.Enable, 1)
+            
         except Exception as e:
             QMessageBox.critical(self, "VLC Error", f"VLC Error: {e}")
             sys.exit(1)
@@ -311,11 +341,16 @@ class App(QMainWindow):
         self.projection_window.move_to_second_screen()
         self.projection_window.show()
         
-        if sys.platform.startswith("win"): self.media_player.set_hwnd(int(self.projection_window.video_widget.winId()))
+        self.init_ui()
+        
+        if sys.platform.startswith("win"): 
+            self.media_player.set_hwnd(int(self.projection_window.video_widget.winId()))
+            self.preview_player.set_hwnd(int(self.preview_display.video_widget.winId()))
+            
         self.media_player.video_set_mouse_input(False)
         self.media_player.video_set_key_input(False)
-            
-        self.init_ui()
+        self.preview_player.video_set_mouse_input(False)
+        self.preview_player.video_set_key_input(False)
         self.is_playing = False
         self.is_transitioning = False
         self.user_is_seeking = False
@@ -355,10 +390,23 @@ class App(QMainWindow):
         top_bar.addLayout(mgmt_right)
         layout.addLayout(top_bar)
 
-        # --- PLAYLIST ---
+        # --- MIDDLE PANEL (LIST + PREVIEW) ---
+        middle_panel = QHBoxLayout()
+        
+        # PLAYLIST
         self.playlist = PlaylistTable(self)
         self.playlist.itemDoubleClicked.connect(lambda: self.play_media())
-        layout.addWidget(self.playlist, stretch=1)
+        middle_panel.addWidget(self.playlist, stretch=2)
+        
+        # OPERATOR PREVIEW
+        self.preview_group = QGroupBox("Live Preview")
+        preview_layout = QVBoxLayout(self.preview_group)
+        self.preview_display = VideoDisplay()
+        self.preview_display.setMinimumWidth(320)
+        preview_layout.addWidget(self.preview_display)
+        middle_panel.addWidget(self.preview_group, stretch=1)
+        
+        layout.addLayout(middle_panel, stretch=1)
 
         # --- TRANSPORT SECTION ---
         transport_frame = QGroupBox("Transport Control")
@@ -510,6 +558,7 @@ class App(QMainWindow):
     def set_volume(self, value):
         self.media_player.audio_set_volume(value)
         self.projection_window.visualizer.volume_multiplier = value / 100.0
+        self.preview_display.visualizer.volume_multiplier = value / 100.0
         self.vol_label.setText(f"Volume: {value}%")
 
     def format_time(self, ms):
@@ -532,6 +581,16 @@ class App(QMainWindow):
                 if curr >= 0 and total >= 0:
                     rem = max(0, total - curr)
                     self.time_label.setText(f"{self.format_time(curr)} / {self.format_time(total)} (Remaining: -{self.format_time(rem)})")
+            
+            # Update modes for both displays based on tracks
+            if not self.logo_overlay_btn.isChecked():
+                if self.media_player.audio_get_track_count() > 0 and self.media_player.video_get_track_count() == 0:
+                    self.preview_display.set_mode_audio()
+                else:
+                    self.preview_display.set_mode_video()
+            else:
+                self.preview_display.set_mode_audio()
+
         elif not self.user_is_seeking:
             self.progress_slider.setValue(0)
             self.time_label.setText("00:00 / 00:00 (Remaining: -00:00)")
@@ -549,10 +608,17 @@ class App(QMainWindow):
         path = self.playlist.item(row, 0).data(Qt.ItemDataRole.UserRole)
         self.playlist.set_playing_row(row)
         
-        if self.logo_overlay_btn.isChecked(): self.projection_window.set_mode_audio()
+        if self.logo_overlay_btn.isChecked():
+            self.projection_window.set_mode_audio()
+            self.preview_display.set_mode_audio()
         else:
             is_audio = path.lower().endswith(('.mp3', '.wav', '.flac', '.aac', '.ogg', '.m4a'))
-            self.projection_window.set_mode_audio() if is_audio else self.projection_window.set_mode_video()
+            if is_audio:
+                self.projection_window.set_mode_audio()
+                self.preview_display.set_mode_audio()
+            else:
+                self.projection_window.set_mode_video()
+                self.preview_display.set_mode_video()
             
         threading.Thread(target=self._transition_thread, args=(path,), daemon=True).start()
 
@@ -566,21 +632,31 @@ class App(QMainWindow):
                     vol -= (vol / 20); bri -= 0.05
                     self.media_player.audio_set_volume(int(max(0, vol)))
                     self.media_player.video_set_adjust_float(vlc.VideoAdjustOption.Brightness, max(0.0, bri))
+                    self.preview_player.video_set_adjust_float(vlc.VideoAdjustOption.Brightness, max(0.0, bri))
                     time.sleep(0.05)
+                self.media_player.pause()
+                self.preview_player.pause()
+                time.sleep(0.1)
                 self.media_player.stop()
+                self.preview_player.stop()
             
             media = self.vlc_instance.media_new(path)
             self.media_player.set_media(media)
+            self.preview_player.set_media(media)
+            
             self.media_player.play()
+            self.preview_player.play()
             self.is_playing = True
             time.sleep(0.2)
             self.media_player.video_set_adjust_int(vlc.VideoAdjustOption.Enable, 1)
+            self.preview_player.video_set_adjust_int(vlc.VideoAdjustOption.Enable, 1)
             
             vol, bri = 0, 0.0
             for _ in range(20):
                 vol += (target_vol / 20); bri += 0.05
                 self.media_player.audio_set_volume(int(min(target_vol, vol)))
                 self.media_player.video_set_adjust_float(vlc.VideoAdjustOption.Brightness, min(1.0, bri))
+                self.preview_player.video_set_adjust_float(vlc.VideoAdjustOption.Brightness, min(1.0, bri))
                 time.sleep(0.02)
         except: pass
         self.is_transitioning = False
@@ -596,18 +672,35 @@ class App(QMainWindow):
             vol -= (vol / (40 - i)); bri -= 0.025
             self.media_player.audio_set_volume(int(vol))
             self.media_player.video_set_adjust_float(vlc.VideoAdjustOption.Brightness, max(0.0, bri))
+            self.preview_player.video_set_adjust_float(vlc.VideoAdjustOption.Brightness, max(0.0, bri))
             time.sleep(0.05)
         self.stop_media()
         self.media_player.audio_set_volume(self.volume_slider.value())
         self.media_player.video_set_adjust_float(vlc.VideoAdjustOption.Brightness, 1.0)
+        self.preview_player.video_set_adjust_float(vlc.VideoAdjustOption.Brightness, 1.0)
         self.is_transitioning = False
 
     def toggle_play_pause(self):
-        if self.is_playing: self.media_player.pause() if self.media_player.get_state() == vlc.State.Playing else self.media_player.play()
+        if self.is_playing:
+            if self.media_player.get_state() == vlc.State.Playing:
+                self.media_player.pause()
+                self.preview_player.pause()
+            else:
+                self.media_player.play()
+                self.preview_player.play()
         else: self.play_media()
 
     def stop_media(self):
+        if self.media_player.get_state() in (vlc.State.Playing, vlc.State.Paused):
+            self.media_player.video_set_adjust_float(vlc.VideoAdjustOption.Brightness, 0.0)
+            self.preview_player.video_set_adjust_float(vlc.VideoAdjustOption.Brightness, 0.0)
+            self.media_player.audio_set_volume(0)
+            self.media_player.pause()
+            self.preview_player.pause()
+            time.sleep(0.05)
+            
         self.media_player.stop()
+        self.preview_player.stop()
         self.is_playing = False
         self.playlist.set_playing_row(-1)
 
@@ -623,7 +716,10 @@ class App(QMainWindow):
 
     def select_logo(self):
         path, _ = QFileDialog.getOpenFileName(self, "Logo", "", "Images (*.png *.jpg *.jpeg *.bmp)")
-        if path: self.projection_window.visualizer.logo_pixmap = QPixmap(path)
+        if path:
+            pixmap = QPixmap(path)
+            self.projection_window.visualizer.logo_pixmap = pixmap
+            self.preview_display.visualizer.logo_pixmap = pixmap
 
     def toggle_projection_fullscreen(self):
         if self.projection_window.isFullScreen(): self.projection_window.showNormal()
@@ -636,6 +732,7 @@ class App(QMainWindow):
     def toggle_logo_overlay(self, checked):
         if checked:
             self.projection_window.set_mode_audio()
+            self.preview_display.set_mode_audio()
         else:
             # Restore mode based on current file type without restarting playback
             row = self.playlist.currentRow()
@@ -644,13 +741,23 @@ class App(QMainWindow):
                 is_audio = path.lower().endswith(('.mp3', '.wav', '.flac', '.aac', '.ogg', '.m4a'))
                 if is_audio:
                     self.projection_window.set_mode_audio()
+                    self.preview_display.set_mode_audio()
                 else:
                     self.projection_window.set_mode_video()
+                    self.preview_display.set_mode_video()
             else:
                 self.projection_window.set_mode_video()
+                self.preview_display.set_mode_video()
 
-    def update_logo_visibility(self): self.projection_window.visualizer.show_logo = self.logo_audio_checkbox.isChecked()
-    def set_position(self, v): self.media_player.set_position(v / 1000.0)
+    def update_logo_visibility(self):
+        visible = self.logo_audio_checkbox.isChecked()
+        self.projection_window.visualizer.show_logo = visible
+        self.preview_display.visualizer.show_logo = visible
+
+    def set_position(self, v):
+        pos = v / 1000.0
+        self.media_player.set_position(pos)
+        self.preview_player.set_position(pos)
     def slider_released(self): self.user_is_seeking = False; self.set_position(self.progress_slider.value())
     
     def save_project(self):

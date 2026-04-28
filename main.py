@@ -551,8 +551,13 @@ class App(QMainWindow):
         
         self.play_btn = QPushButton("▶ PLAY")
         self.play_btn.setObjectName("PlayBtn")
-        self.play_btn.setToolTip("Odtwórz / Pauza (F4 / Spacja)")
+        self.play_btn.setToolTip("Odtwórz (F4)")
         self.play_btn.clicked.connect(self.play_media)
+        
+        self.pause_btn = QPushButton("⏸ PAUSE")
+        self.pause_btn.setObjectName("TransportBtn")
+        self.pause_btn.setToolTip("Pauza / Wznów (Spacja)")
+        self.pause_btn.clicked.connect(self.toggle_play_pause)
         
         self.stop_btn = QPushButton("⏹ STOP")
         self.stop_btn.setObjectName("StopBtn")
@@ -564,7 +569,7 @@ class App(QMainWindow):
         self.next_btn.setToolTip("Następny plik (F7 / Strzałka w prawo)")
         self.next_btn.clicked.connect(self.play_next_file)
         
-        for btn in [self.prev_btn, self.play_btn, self.stop_btn, self.next_btn]:
+        for btn in [self.prev_btn, self.play_btn, self.pause_btn, self.stop_btn, self.next_btn]:
             btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
             btns_grid.addWidget(btn)
         trans_layout.addLayout(btns_grid)
@@ -592,19 +597,42 @@ class App(QMainWindow):
         audio_group = QGroupBox("Audio")
         audio_main_layout = QHBoxLayout(audio_group)
         
-        slider_layout = QVBoxLayout()
+        # --- Suwak głośności ---
+        vol_slider_layout = QVBoxLayout()
+        vol_title = QLabel("🔊 Głośność")
+        vol_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        vol_title.setStyleSheet("font-size: 8pt; color: #aaaaaa;")
         self.vol_label = QLabel("100%")
         self.vol_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.volume_slider = QSlider(Qt.Orientation.Vertical)
         self.volume_slider.setRange(0, 100)
         self.volume_slider.setValue(100)
         self.volume_slider.valueChanged.connect(self.set_volume)
+        vol_slider_layout.addWidget(vol_title)
+        vol_slider_layout.addWidget(self.vol_label)
+        vol_slider_layout.addWidget(self.volume_slider, alignment=Qt.AlignmentFlag.AlignHCenter)
         
-        slider_layout.addWidget(self.vol_label)
-        slider_layout.addWidget(self.volume_slider, alignment=Qt.AlignmentFlag.AlignHCenter)
+        # --- Suwak prędkości fade ---
+        fade_slider_layout = QVBoxLayout()
+        fade_title = QLabel("⏱ Fade")
+        fade_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        fade_title.setStyleSheet("font-size: 8pt; color: #aaaaaa;")
+        self.fade_speed_label = QLabel("2.0s")
+        self.fade_speed_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.fade_speed_slider = QSlider(Qt.Orientation.Vertical)
+        # Zakres 2–20 (= 0.2s–2.0s, skalujemy /10 → czyli 10 = 1.0s, 20 = 2.0s)
+        self.fade_speed_slider.setRange(2, 20)
+        self.fade_speed_slider.setValue(20)   # domyślnie 2.0s
+        self.fade_speed_slider.setToolTip("Czas trwania efektu fade (0.2s – 2.0s)")
+        self.fade_speed_slider.valueChanged.connect(self._on_fade_speed_changed)
+        fade_slider_layout.addWidget(fade_title)
+        fade_slider_layout.addWidget(self.fade_speed_label)
+        fade_slider_layout.addWidget(self.fade_speed_slider, alignment=Qt.AlignmentFlag.AlignHCenter)
         
         audio_main_layout.addStretch()
-        audio_main_layout.addLayout(slider_layout)
+        audio_main_layout.addLayout(vol_slider_layout)
+        audio_main_layout.addSpacing(12)
+        audio_main_layout.addLayout(fade_slider_layout)
         audio_main_layout.addStretch()
         
         settings_group = QGroupBox("Ustawienia")
@@ -660,6 +688,15 @@ class App(QMainWindow):
         self.media_player.audio_set_volume(value)
         self.projection_window.visualizer.volume_multiplier = value / 100.0
         self.vol_label.setText(f"{value}%")
+
+    def _on_fade_speed_changed(self, value):
+        # value: 2–20, gdzie 10 = 1.0s, 20 = 2.0s
+        seconds = value / 10.0
+        self.fade_speed_label.setText(f"{seconds:.1f}s")
+
+    def _fade_duration(self):
+        """Zwraca czas trwania fade w sekundach (0.2 – 2.0)."""
+        return self.fade_speed_slider.value() / 10.0
 
     def format_time(self, ms):
         s, _ = divmod(ms, 1000)
@@ -718,16 +755,21 @@ class App(QMainWindow):
     def _transition_thread(self, path):
         self.is_transitioning = True
         target_vol = self.volume_slider.value()
+        fade_secs = self._fade_duration()   # np. 2.0 = 2 sekundy
+        steps_out = max(5, int(fade_secs * 10))  # 10 kroków/s, min 5
+        step_sleep_out = fade_secs / steps_out
+        steps_in  = max(5, int(fade_secs * 10))
+        step_sleep_in  = fade_secs / steps_in
         try:
             if self.is_playing:
                 has_audio = (self.media_player.audio_get_track_count() > 0)
                 start_vol = self.media_player.audio_get_volume() if has_audio else 0
-                for i in range(20):
-                    vol = start_vol * (1 - (i + 1) / 20.0)
-                    bri = 1.0 - ((i + 1) * 0.05)
+                for i in range(steps_out):
+                    vol = start_vol * (1 - (i + 1) / steps_out)
+                    bri = 1.0 - ((i + 1) / steps_out)
                     if has_audio: self.media_player.audio_set_volume(int(max(0, vol)))
                     self.media_player.video_set_adjust_float(vlc.VideoAdjustOption.Brightness, max(0.0, bri))
-                    time.sleep(0.05)
+                    time.sleep(step_sleep_out)
                 # Upewniamy się że zeszło do magicznego zera. ŻADNEGO UŻYWANIA MUTE! (Mute popuje na Win32)
                 if has_audio:
                     self.media_player.audio_set_volume(0)
@@ -753,12 +795,12 @@ class App(QMainWindow):
             
             has_audio = (self.media_player.audio_get_track_count() > 0)
             
-            for i in range(20):
-                vol = target_vol * ((i + 1) / 20.0)
-                bri = (i + 1) * 0.05
+            for i in range(steps_in):
+                vol = target_vol * ((i + 1) / steps_in)
+                bri = (i + 1) / steps_in
                 if has_audio: self.media_player.audio_set_volume(int(min(target_vol, vol)))
                 self.media_player.video_set_adjust_float(vlc.VideoAdjustOption.Brightness, min(1.0, bri))
-                time.sleep(0.02)
+                time.sleep(step_sleep_in)
         except Exception:
             pass
         finally:
@@ -771,14 +813,17 @@ class App(QMainWindow):
     def _fade_out_thread(self):
         self.is_transitioning = True
         try:
+            fade_secs = self._fade_duration()
+            steps = max(5, int(fade_secs * 10))
+            step_sleep = fade_secs / steps
             has_audio = (self.media_player.audio_get_track_count() > 0)
             start_vol = self.media_player.audio_get_volume() if has_audio else 0
-            for i in range(40):
-                vol = start_vol * (1 - (i + 1) / 40.0)
-                bri = 1.0 - ((i + 1) * 0.025)
+            for i in range(steps):
+                vol = start_vol * (1 - (i + 1) / steps)
+                bri = 1.0 - ((i + 1) / steps)
                 if has_audio: self.media_player.audio_set_volume(int(max(0, vol)))
                 self.media_player.video_set_adjust_float(vlc.VideoAdjustOption.Brightness, max(0.0, bri))
-                time.sleep(0.05)
+                time.sleep(step_sleep)
                 
             self.stop_media()
             self.media_player.video_set_adjust_float(vlc.VideoAdjustOption.Brightness, 1.0)

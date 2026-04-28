@@ -24,7 +24,7 @@ from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                              QMessageBox, QCheckBox, QStackedLayout, QLabel, 
                              QFrame, QGroupBox, QAbstractItemView, QSizePolicy,
                              QLineEdit)
-from PyQt6.QtCore import Qt, QTimer, QSize
+from PyQt6.QtCore import Qt, QTimer, QSize, pyqtSignal
 from PyQt6.QtGui import QShortcut, QKeySequence, QPainter, QColor, QPixmap, QFont
 
 # --- STAŁE KOLORYSTYCZNE I STYLIZACJA ---
@@ -257,6 +257,10 @@ class ProjectionWindow(QWidget):
         self.hide()
 
 class PlaylistTable(QTableWidget):
+    duration_updated = pyqtSignal(int, str)
+    # Semafor: max 2 wątki parsujące jednocześnie, żeby nie przeciążać systemu
+    _parse_semaphore = threading.Semaphore(2)
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setColumnCount(2)
@@ -277,6 +281,20 @@ class PlaylistTable(QTableWidget):
         self.setDefaultDropAction(Qt.DropAction.MoveAction)
         
         self.playing_row = -1
+        self.duration_updated.connect(self.on_duration_updated)
+        
+        # KLUCZOWE: oddzielna, izolowana instancja VLC TYLKO do parsowania metadanych.
+        # Nie interferuje z głównym odtwarzaczem - brak video/audio output.
+        try:
+            self._parser_vlc = vlc.Instance('--quiet', '--no-video', '--no-audio',
+                                             '--no-xlib', '--intf=dummy')
+        except Exception:
+            self._parser_vlc = None
+
+    def on_duration_updated(self, row, time_str):
+        if row < self.rowCount():
+            item = self.item(row, 1)
+            if item: item.setText(time_str)
 
     def add_file(self, file_path, vlc_instance):
         filename = os.path.basename(file_path)
@@ -292,24 +310,38 @@ class PlaylistTable(QTableWidget):
         time_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
         self.setItem(row, 1, time_item)
         
-        threading.Thread(target=self._update_duration, args=(file_path, row, vlc_instance), daemon=True).start()
+        # Przekazujemy TYLKO ścieżkę i numer wiersza - żadnego współdzielonego vlc_instance
+        threading.Thread(target=self._update_duration, args=(file_path, row), daemon=True).start()
 
-    def _update_duration(self, path, row, vlc_instance):
-        media = vlc_instance.media_new(path)
-        media.parse_with_options(vlc.MediaParseFlag.local, 0)
-        for _ in range(10):
-            if media.get_parsed_status() == vlc.MediaParsedStatus.done: break
-            time.sleep(0.1)
-        
-        ms = media.get_duration()
-        if ms > 0:
-            s, _ = divmod(ms, 1000)
-            m, s = divmod(s, 60)
-            h, m = divmod(m, 60)
-            time_str = f"{h:02d}:{m:02d}:{s:02d}" if h > 0 else f"{m:02d}:{s:02d}"
-            if row < self.rowCount():
-                item = self.item(row, 1)
-                if item: item.setText(time_str)
+    def _update_duration(self, path, row):
+        if self._parser_vlc is None:
+            return
+        media = None
+        # Semafor zapewnia, że max 2 wątki parsują jednocześnie
+        with PlaylistTable._parse_semaphore:
+            try:
+                media = self._parser_vlc.media_new(path)
+                if not media: return
+                # timeout=3000ms - nie czekamy w nieskończoność
+                media.parse_with_options(vlc.MediaParseFlag.local, 3000)
+                for _ in range(30):
+                    status = media.get_parsed_status()
+                    if status == vlc.MediaParsedStatus.done: break
+                    if status == vlc.MediaParsedStatus.failed: return
+                    time.sleep(0.1)
+                
+                ms = media.get_duration()
+                if ms > 0:
+                    s, _ = divmod(ms, 1000)
+                    m, s = divmod(s, 60)
+                    h, m = divmod(m, 60)
+                    time_str = f"{h:02d}:{m:02d}:{s:02d}" if h > 0 else f"{m:02d}:{s:02d}"
+                    self.duration_updated.emit(row, time_str)
+            except Exception:
+                pass
+            finally:
+                if media:
+                    media.release()
 
     def set_playing_row(self, row):
         # Wyczyść poprzednie podświetlenie
@@ -636,33 +668,46 @@ class App(QMainWindow):
         return f"{h:02d}:{m:02d}:{s:02d}" if h > 0 else f"{m:02d}:{s:02d}"
 
     def check_player_status(self):
-        if self.is_playing and not self.is_transitioning:
-            state = self.media_player.get_state()
-            if state in (vlc.State.Ended, vlc.State.Stopped):
-                self.is_playing = False
-                if state == vlc.State.Ended and self.autoplay_checkbox.isChecked(): self.play_next_file()
-            if not self.user_is_seeking:
-                pos = self.media_player.get_position()
-                if pos >= 0: self.progress_slider.setValue(int(pos * 1000))
-                curr, total = self.media_player.get_time(), self.media_player.get_length()
-                if curr >= 0 and total >= 0:
-                    rem = max(0, total - curr)
-                    self.time_label.setText(f"{self.format_time(curr)} / {self.format_time(total)} (Pozostało: -{self.format_time(rem)})")
-        elif not self.user_is_seeking:
-            self.progress_slider.setValue(0)
-            self.time_label.setText("00:00 / 00:00 (Pozostało: -00:00)")
+        try:
+            if self.is_playing and not self.is_transitioning:
+                state = self.media_player.get_state()
+                if state in (vlc.State.Ended, vlc.State.Stopped):
+                    self.is_playing = False
+                    if state == vlc.State.Ended and self.autoplay_checkbox.isChecked(): self.play_next_file()
+                if not self.user_is_seeking:
+                    pos = self.media_player.get_position()
+                    if pos >= 0: self.progress_slider.setValue(int(pos * 1000))
+                    curr, total = self.media_player.get_time(), self.media_player.get_length()
+                    if curr >= 0 and total >= 0:
+                        rem = max(0, total - curr)
+                        self.time_label.setText(f"{self.format_time(curr)} / {self.format_time(total)} (Pozostało: -{self.format_time(rem)})")
+            elif not self.user_is_seeking:
+                self.progress_slider.setValue(0)
+                self.time_label.setText("00:00 / 00:00 (Pozostało: -00:00)")
+        except Exception:
+            pass
 
     def add_files(self):
         files, _ = QFileDialog.getOpenFileNames(self, "Dodaj multimedia", "", "Media (*.mp4 *.mp3 *.mkv *.jpg *.png);;Wszystkie (*.*)")
         for f in files: self.playlist.add_file(f, self.vlc_instance)
 
     def remove_file(self):
-        for item in self.playlist.selectedItems(): self.playlist.removeRow(item.row())
+        # Zbieramy numery wierszy jako liczby całkowite PRZED jakimkolwiek usuwaniem.
+        # Iteracja po selectedItems() po removeRow() powoduje RuntimeError bo Qt
+        # niszczy obiekty C++ pod spodem Pythona.
+        rows = sorted(set(item.row() for item in self.playlist.selectedItems()), reverse=True)
+        for row in rows:
+            self.playlist.removeRow(row)
 
     def play_media(self):
         row = self.playlist.currentRow()
         if row == -1 or self.is_transitioning: return
         path = self.playlist.item(row, 0).data(Qt.ItemDataRole.UserRole)
+        
+        if not path or not os.path.exists(path):
+            QMessageBox.warning(self, "Błąd pliku", f"Plik nie istnieje lub został przeniesiony:\n{path}")
+            return
+            
         self.playlist.set_playing_row(row)
         if self.logo_overlay_btn.isChecked(): self.projection_window.set_mode_audio()
         else:
@@ -714,8 +759,10 @@ class App(QMainWindow):
                 if has_audio: self.media_player.audio_set_volume(int(min(target_vol, vol)))
                 self.media_player.video_set_adjust_float(vlc.VideoAdjustOption.Brightness, min(1.0, bri))
                 time.sleep(0.02)
-        except: pass
-        self.is_transitioning = False
+        except Exception:
+            pass
+        finally:
+            self.is_transitioning = False
 
     def fade_out(self):
         if self.is_playing and not self.is_transitioning:
@@ -723,19 +770,22 @@ class App(QMainWindow):
 
     def _fade_out_thread(self):
         self.is_transitioning = True
-        has_audio = (self.media_player.audio_get_track_count() > 0)
-        start_vol = self.media_player.audio_get_volume() if has_audio else 0
-        for i in range(40):
-            vol = start_vol * (1 - (i + 1) / 40.0)
-            bri = 1.0 - ((i + 1) * 0.025)
-            if has_audio: self.media_player.audio_set_volume(int(max(0, vol)))
-            self.media_player.video_set_adjust_float(vlc.VideoAdjustOption.Brightness, max(0.0, bri))
-            time.sleep(0.05)
-            
-        self.stop_media()
-        
-        self.media_player.video_set_adjust_float(vlc.VideoAdjustOption.Brightness, 1.0)
-        self.is_transitioning = False
+        try:
+            has_audio = (self.media_player.audio_get_track_count() > 0)
+            start_vol = self.media_player.audio_get_volume() if has_audio else 0
+            for i in range(40):
+                vol = start_vol * (1 - (i + 1) / 40.0)
+                bri = 1.0 - ((i + 1) * 0.025)
+                if has_audio: self.media_player.audio_set_volume(int(max(0, vol)))
+                self.media_player.video_set_adjust_float(vlc.VideoAdjustOption.Brightness, max(0.0, bri))
+                time.sleep(0.05)
+                
+            self.stop_media()
+            self.media_player.video_set_adjust_float(vlc.VideoAdjustOption.Brightness, 1.0)
+        except Exception:
+            pass
+        finally:
+            self.is_transitioning = False
 
     def toggle_play_pause(self):
         if self.is_playing: self.media_player.pause() if self.media_player.get_state() == vlc.State.Playing else self.media_player.play()
@@ -812,15 +862,25 @@ class App(QMainWindow):
     def save_project(self):
         path, _ = QFileDialog.getSaveFileName(self, "Zapisz", "", "JSON (*.json)")
         if path:
-            items = [self.playlist.item(i, 0).data(Qt.ItemDataRole.UserRole) for i in range(self.playlist.rowCount())]
-            with open(path, 'w', encoding='utf-8') as f: json.dump(items, f, ensure_ascii=False, indent=4)
+            try:
+                items = [self.playlist.item(i, 0).data(Qt.ItemDataRole.UserRole) for i in range(self.playlist.rowCount()) if self.playlist.item(i, 0)]
+                with open(path, 'w', encoding='utf-8') as f: json.dump(items, f, ensure_ascii=False, indent=4)
+            except Exception as e:
+                QMessageBox.critical(self, "Błąd zapisu", f"Nie udało się zapisać projektu:\n{e}")
 
     def load_project(self):
         path, _ = QFileDialog.getOpenFileName(self, "Wczytaj", "", "JSON (*.json)")
         if path:
-            with open(path, 'r', encoding='utf-8') as f: items = json.load(f)
-            self.playlist.setRowCount(0)
-            for p in items: self.playlist.add_file(p, self.vlc_instance)
+            try:
+                with open(path, 'r', encoding='utf-8') as f: items = json.load(f)
+                self.playlist.setRowCount(0)
+                for p in items:
+                    if os.path.exists(p):
+                        self.playlist.add_file(p, self.vlc_instance)
+                    else:
+                        print(f"Pominięto brakujący plik podczas wczytywania: {p}")
+            except Exception as e:
+                QMessageBox.critical(self, "Błąd odczytu", f"Nie udało się wczytać projektu:\n{e}")
 
     def closeEvent(self, event): self.projection_window.close(); super().closeEvent(event)
 

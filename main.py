@@ -698,52 +698,31 @@ class App(QMainWindow):
     def _transition_thread(self, path):
         self.is_transitioning = True
         target_vol = self.volume_slider.value()
-        fade_secs = self._fade_duration()   # np. 2.0 = 2 sekundy
-        steps_out = max(5, int(fade_secs * 10))  # 10 kroków/s, min 5
-        step_sleep_out = fade_secs / steps_out
-        steps_in  = max(5, int(fade_secs * 10))
-        step_sleep_in  = fade_secs / steps_in
         try:
-            if self.is_playing:
-                has_audio = (self.media_player.audio_get_track_count() > 0)
-                start_vol = self.media_player.audio_get_volume() if has_audio else 0
-                for i in range(steps_out):
-                    vol = start_vol * (1 - (i + 1) / steps_out)
-                    bri = 1.0 - ((i + 1) / steps_out)
-                    if has_audio: self.media_player.audio_set_volume(int(max(0, vol)))
-                    self.media_player.video_set_adjust_float(vlc.VideoAdjustOption.Brightness, max(0.0, bri))
-                    time.sleep(step_sleep_out)
-                # Upewniamy się że zeszło do magicznego zera. ŻADNEGO UŻYWANIA MUTE! (Mute popuje na Win32)
-                if has_audio:
-                    self.media_player.audio_set_volume(0)
-                
-                self.media_player.pause() # Zawsze warto zapauzować, żeby klatka zgasła lub dźwięk zamknął się gracefully
-                time.sleep(0.1)
-                self.media_player.stop()
+            self.media_player.stop()
                 
             media = self.vlc_instance.media_new(path)
             self.media_player.set_media(media)
-            # Odtwarzacz zachowuje status głośności = 0 z poprzedniego zjazdu na dół! Więc ułamki sekundy nic nam nie hukną.
             self.media_player.play()
             self.is_playing = True
             
-            # Poczekaj aż faktycznie zacznie odtwarzać (nie tylko przygotowuje bufor)
+            # Poczekaj aż faktycznie zacznie odtwarzać
             for _ in range(50):
                 if self.media_player.get_state() == vlc.State.Playing:
                     break
                 time.sleep(0.01)
                 
-            time.sleep(0.1) # Dodatkowy bufor na ustabilizowanie dekodera wideo
+            time.sleep(0.1) 
             self.media_player.video_set_adjust_int(vlc.VideoAdjustOption.Enable, 1)
+            self.media_player.video_set_adjust_float(vlc.VideoAdjustOption.Brightness, 1.0)
             
-            has_audio = (self.media_player.audio_get_track_count() > 0)
+            # Agresywne przywracanie głośności: ustawiamy wielokrotnie przez krótki czas
+            for i in range(20):
+                self.media_player.audio_set_volume(target_vol)
+                if i == 0:
+                    self.media_player.audio_set_mute(False)
+                time.sleep(0.05)
             
-            for i in range(steps_in):
-                vol = target_vol * ((i + 1) / steps_in)
-                bri = (i + 1) / steps_in
-                if has_audio: self.media_player.audio_set_volume(int(min(target_vol, vol)))
-                self.media_player.video_set_adjust_float(vlc.VideoAdjustOption.Brightness, min(1.0, bri))
-                time.sleep(step_sleep_in)
         except Exception:
             pass
         finally:

@@ -10,6 +10,7 @@ import threading
 import json
 import random
 import math
+import subprocess
 
 try:
     import vlc
@@ -257,11 +258,17 @@ class ProjectionWindow(QWidget):
         self.hide()
 
 class PlaylistTable(QTableWidget):
+    duration_updated = pyqtSignal(int, str)
+    # Semafor: max 2 wątki parsujące jednocześnie, żeby nie przeciążać systemu
+    _parse_semaphore = threading.Semaphore(2)
+
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setColumnCount(1)
-        self.setHorizontalHeaderLabels(["Nazwa pliku"])
+        self.setColumnCount(2)
+        self.setHorizontalHeaderLabels(["Nazwa pliku", "Czas"])
         self.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        self.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Fixed)
+        self.setColumnWidth(1, 100)
         self.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
@@ -275,6 +282,12 @@ class PlaylistTable(QTableWidget):
         self.setDefaultDropAction(Qt.DropAction.MoveAction)
         
         self.playing_row = -1
+        self.duration_updated.connect(self.on_duration_updated)
+
+    def on_duration_updated(self, row, time_str):
+        if row < self.rowCount():
+            item = self.item(row, 1)
+            if item: item.setText(time_str)
 
     def add_file(self, file_path, vlc_instance):
         filename = os.path.basename(file_path)
@@ -285,11 +298,50 @@ class PlaylistTable(QTableWidget):
         name_item.setData(Qt.ItemDataRole.UserRole, file_path)
         name_item.setToolTip(file_path)
         self.setItem(row, 0, name_item)
+        
+        time_item = QTableWidgetItem("--:--")
+        time_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.setItem(row, 1, time_item)
+        
+        # Przekazujemy TYLKO ścieżkę i numer wiersza - żadnego współdzielonego vlc_instance
+        threading.Thread(target=self._update_duration, args=(file_path, row), daemon=True).start()
+
+    def _update_duration(self, path, row):
+        # Semafor zapewnia, że max 2 wątki parsują jednocześnie
+        with PlaylistTable._parse_semaphore:
+            try:
+                cmd = [
+                    'ffprobe', 
+                    '-v', 'error', 
+                    '-show_entries', 'format=duration', 
+                    '-of', 'default=noprint_wrappers=1:nokey=1', 
+                    path
+                ]
+                
+                # Na Windows zapobiegamy pokazywaniu okna konsoli
+                startupinfo = None
+                if sys.platform == "win32":
+                    startupinfo = subprocess.STARTUPINFO()
+                    startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+                
+                result = subprocess.run(cmd, capture_output=True, text=True, startupinfo=startupinfo)
+                if result.returncode == 0:
+                    output = result.stdout.strip()
+                    if output and output != "N/A":
+                        duration_sec = float(output)
+                        if duration_sec > 0:
+                            s = int(duration_sec)
+                            m, s = divmod(s, 60)
+                            h, m = divmod(m, 60)
+                            time_str = f"{h:02d}:{m:02d}:{s:02d}" if h > 0 else f"{m:02d}:{s:02d}"
+                            self.duration_updated.emit(row, time_str)
+            except Exception:
+                pass
 
     def set_playing_row(self, row):
         # Wyczyść poprzednie podświetlenie
         if self.playing_row != -1 and self.playing_row < self.rowCount():
-            for c in range(1):
+            for c in range(2):
                 it = self.item(self.playing_row, c)
                 if it:
                     it.setBackground(QColor("transparent"))
@@ -298,7 +350,7 @@ class PlaylistTable(QTableWidget):
         self.playing_row = row
         if self.playing_row != -1 and self.playing_row < self.rowCount():
             font = QFont("Segoe UI", 10, QFont.Weight.Bold)
-            for c in range(1):
+            for c in range(2):
                 it = self.item(self.playing_row, c)
                 if it:
                     it.setBackground(QColor("#094771"))
@@ -369,7 +421,7 @@ class PlaylistTable(QTableWidget):
                 # Odśwież wyróżnienie dla wiersza odtwarzanego
                 if self.playing_row != -1:
                     font = QFont("Segoe UI", 10, QFont.Weight.Bold)
-                    for c in range(1):
+                    for c in range(2):
                         it = self.item(self.playing_row, c)
                         if it:
                             it.setBackground(QColor("#094771"))

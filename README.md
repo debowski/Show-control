@@ -11,12 +11,12 @@ Profesjonalna aplikacja do zarządzania projekcją multimediów (wideo i audio) 
 ### 🖥️ Dwuekranowy tryb pracy
 Aplikacja automatycznie wykrywa drugi monitor i otwiera na nim **okno projekcji** w trybie pełnoekranowym. Operator steruje całością z **panelu konsoli** na pierwszym ekranie. Oba okna są całkowicie niezależne, co eliminuje rozpraszanie widza interfejsem sterowania.
 
-### 🎬 Silnik odtwarzania — LibVLC
+### 🎬 Silnik odtwarzania — LibVLC i FFmpeg
 Rdzeń odtwarzania oparty na bibliotece **python-vlc** (silnik LibVLC), co zapewnia:
 - Wsparcie szerokiej gamy formatów: wideo (`MP4`, `MKV`, `AVI`, `MOV` i inne) oraz audio (`MP3`, `WAV`, `FLAC`, `AAC`, `OGG`, `M4A`).
 - Płynne odtwarzanie z wyjściem Direct3D11 (Windows), co minimalizuje obciążenie procesora.
 - Wyjście audio przez WaveOut, bez problemu z „pukaniem" przy wyciszaniu.
-- Oddzielna, izolowana instancja VLC do **parsowania metadanych** (czas trwania pliku) w tle — bez ingerencji w główne odtwarzanie.
+- Wykorzystanie narzędzia **ffprobe** (część pakietu FFmpeg) do błyskawicznego **parsowania czasu trwania** każdego pliku w tle — bez ingerencji w główne odtwarzanie.
 
 ### 🎞️ Płynne przejścia (Crossfade)
 Przełączanie między materiałami odbywa się z **efektem Fade Out / Fade In** realizowanym w osobnym wątku:
@@ -106,13 +106,14 @@ Dla plików dźwiękowych (lub w trybie Logo Overlay) okno projekcji wyświetla 
 
 Pobierz plik `ShowControl.exe` z folderu `dist/` i uruchom go bezpośrednio.
 
-> **Wymaganie:** Zainstalowany **VLC Media Player w wersji 64-bitowej** (standardowa instalacja z [videolan.org](https://www.videolan.org/)). Aplikacja korzysta z bibliotek VLC zainstalowanych w systemie.
+> **Wymaganie:** Zainstalowany **VLC Media Player w wersji 64-bitowej** (standardowa instalacja z [videolan.org](https://www.videolan.org/)) oraz pakiet **FFmpeg** (narzędzie `ffprobe` musi być dostępne w PATH). Aplikacja korzysta z bibliotek VLC oraz ffprobe zainstalowanych w systemie.
 
 ### 🐍 Opcja B — Uruchomienie ze źródeł (Python)
 
 #### Wymagania
 1. **Python 3.10+** (zalecany 3.11+)
 2. **VLC Media Player 64-bit**
+3. **FFmpeg** (z dostępnym narzędziem `ffprobe`)
 
 #### Kroki instalacji
 1. Sklonuj repozytorium lub pobierz pliki projektu.

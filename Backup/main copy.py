@@ -1,4 +1,4 @@
-# Show-control Version 2.0
+# Show-control Version 0.2
 # Copyright (C) 2026 Piotr Dębowski
 #
 # Professional Broadcast Edition
@@ -10,7 +10,9 @@ import threading
 import json
 import random
 import math
-import subprocess
+import logging
+
+logging.basicConfig(level=logging.ERROR, format='%(asctime)s - %(levelname)s - %(message)s')
 
 try:
     import vlc
@@ -258,17 +260,11 @@ class ProjectionWindow(QWidget):
         self.hide()
 
 class PlaylistTable(QTableWidget):
-    duration_updated = pyqtSignal(int, str)
-    # Semafor: max 2 wątki parsujące jednocześnie, żeby nie przeciążać systemu
-    _parse_semaphore = threading.Semaphore(2)
-
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setColumnCount(2)
-        self.setHorizontalHeaderLabels(["Nazwa pliku", "Czas"])
+        self.setColumnCount(1)
+        self.setHorizontalHeaderLabels(["Nazwa pliku"])
         self.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        self.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Fixed)
-        self.setColumnWidth(1, 100)
         self.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
@@ -282,12 +278,6 @@ class PlaylistTable(QTableWidget):
         self.setDefaultDropAction(Qt.DropAction.MoveAction)
         
         self.playing_row = -1
-        self.duration_updated.connect(self.on_duration_updated)
-
-    def on_duration_updated(self, row, time_str):
-        if row < self.rowCount():
-            item = self.item(row, 1)
-            if item: item.setText(time_str)
 
     def add_file(self, file_path, vlc_instance):
         filename = os.path.basename(file_path)
@@ -298,50 +288,11 @@ class PlaylistTable(QTableWidget):
         name_item.setData(Qt.ItemDataRole.UserRole, file_path)
         name_item.setToolTip(file_path)
         self.setItem(row, 0, name_item)
-        
-        time_item = QTableWidgetItem("--:--")
-        time_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.setItem(row, 1, time_item)
-        
-        # Przekazujemy TYLKO ścieżkę i numer wiersza - żadnego współdzielonego vlc_instance
-        threading.Thread(target=self._update_duration, args=(file_path, row), daemon=True).start()
-
-    def _update_duration(self, path, row):
-        # Semafor zapewnia, że max 2 wątki parsują jednocześnie
-        with PlaylistTable._parse_semaphore:
-            try:
-                cmd = [
-                    'ffprobe', 
-                    '-v', 'error', 
-                    '-show_entries', 'format=duration', 
-                    '-of', 'default=noprint_wrappers=1:nokey=1', 
-                    path
-                ]
-                
-                # Na Windows zapobiegamy pokazywaniu okna konsoli
-                startupinfo = None
-                if sys.platform == "win32":
-                    startupinfo = subprocess.STARTUPINFO()
-                    startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-                
-                result = subprocess.run(cmd, capture_output=True, text=True, startupinfo=startupinfo)
-                if result.returncode == 0:
-                    output = result.stdout.strip()
-                    if output and output != "N/A":
-                        duration_sec = float(output)
-                        if duration_sec > 0:
-                            s = int(duration_sec)
-                            m, s = divmod(s, 60)
-                            h, m = divmod(m, 60)
-                            time_str = f"{h:02d}:{m:02d}:{s:02d}" if h > 0 else f"{m:02d}:{s:02d}"
-                            self.duration_updated.emit(row, time_str)
-            except Exception:
-                pass
 
     def set_playing_row(self, row):
         # Wyczyść poprzednie podświetlenie
         if self.playing_row != -1 and self.playing_row < self.rowCount():
-            for c in range(2):
+            for c in range(1):
                 it = self.item(self.playing_row, c)
                 if it:
                     it.setBackground(QColor("transparent"))
@@ -350,7 +301,7 @@ class PlaylistTable(QTableWidget):
         self.playing_row = row
         if self.playing_row != -1 and self.playing_row < self.rowCount():
             font = QFont("Segoe UI", 10, QFont.Weight.Bold)
-            for c in range(2):
+            for c in range(1):
                 it = self.item(self.playing_row, c)
                 if it:
                     it.setBackground(QColor("#094771"))
@@ -421,7 +372,7 @@ class PlaylistTable(QTableWidget):
                 # Odśwież wyróżnienie dla wiersza odtwarzanego
                 if self.playing_row != -1:
                     font = QFont("Segoe UI", 10, QFont.Weight.Bold)
-                    for c in range(2):
+                    for c in range(1):
                         it = self.item(self.playing_row, c)
                         if it:
                             it.setBackground(QColor("#094771"))
@@ -432,7 +383,7 @@ class PlaylistTable(QTableWidget):
 class App(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Show Control - Operator Console v2.0")
+        self.setWindowTitle("Show Control - Operator Console v0.2")
         self.setMinimumSize(900, 700)
         
         try:
@@ -451,6 +402,14 @@ class App(QMainWindow):
         if sys.platform.startswith("win"): self.media_player.set_hwnd(int(self.projection_window.video_widget.winId()))
         self.media_player.video_set_mouse_input(False)
         self.media_player.video_set_key_input(False)
+        
+        self.play_event = threading.Event()
+        def on_playing(event):
+            self.play_event.set()
+            
+        # Należy zachować referencję do callbacka, by nie został usunięty przez GC
+        self._vlc_callbacks = [on_playing]
+        self.media_player.event_manager().event_attach(vlc.EventType.MediaPlayerPlaying, on_playing)
             
         self.init_ui()
         self.is_playing = False
@@ -713,11 +672,16 @@ class App(QMainWindow):
                     if curr >= 0 and total >= 0:
                         rem = max(0, total - curr)
                         self.time_label.setText(f"{self.format_time(curr)} / {self.format_time(total)} (Pozostało: -{self.format_time(rem)})")
+                        
+                        # Zabezpieczenie (self-healing): przesyłamy głośność z suwaka przez 
+                        # pierwsze 2 sekundy, co gwarantuje, że VLC poprawnie to odbierze
+                        if curr < 2000:
+                            self.media_player.audio_set_volume(self.volume_slider.value())
             elif not self.user_is_seeking:
                 self.progress_slider.setValue(0)
                 self.time_label.setText("00:00 / 00:00 (Pozostało: -00:00)")
-        except Exception:
-            pass
+        except Exception as e:
+            logging.error("Błąd w check_player_status:", exc_info=True)
 
     def add_files(self):
         files, _ = QFileDialog.getOpenFileNames(self, "Dodaj multimedia", "", "Media (*.mp4 *.mp3 *.mkv *.jpg *.png);;Wszystkie (*.*)")
@@ -750,54 +714,27 @@ class App(QMainWindow):
     def _transition_thread(self, path):
         self.is_transitioning = True
         target_vol = self.volume_slider.value()
-        fade_secs = self._fade_duration()   # np. 2.0 = 2 sekundy
-        steps_out = max(5, int(fade_secs * 10))  # 10 kroków/s, min 5
-        step_sleep_out = fade_secs / steps_out
-        steps_in  = max(5, int(fade_secs * 10))
-        step_sleep_in  = fade_secs / steps_in
         try:
-            if self.is_playing:
-                has_audio = (self.media_player.audio_get_track_count() > 0)
-                start_vol = self.media_player.audio_get_volume() if has_audio else 0
-                for i in range(steps_out):
-                    vol = start_vol * (1 - (i + 1) / steps_out)
-                    bri = 1.0 - ((i + 1) / steps_out)
-                    if has_audio: self.media_player.audio_set_volume(int(max(0, vol)))
-                    self.media_player.video_set_adjust_float(vlc.VideoAdjustOption.Brightness, max(0.0, bri))
-                    time.sleep(step_sleep_out)
-                # Upewniamy się że zeszło do magicznego zera. ŻADNEGO UŻYWANIA MUTE! (Mute popuje na Win32)
-                if has_audio:
-                    self.media_player.audio_set_volume(0)
-                
-                self.media_player.pause() # Zawsze warto zapauzować, żeby klatka zgasła lub dźwięk zamknął się gracefully
-                time.sleep(0.1)
-                self.media_player.stop()
+            self.media_player.stop()
                 
             media = self.vlc_instance.media_new(path)
             self.media_player.set_media(media)
-            # Odtwarzacz zachowuje status głośności = 0 z poprzedniego zjazdu na dół! Więc ułamki sekundy nic nam nie hukną.
+            self.play_event.clear()
             self.media_player.play()
             self.is_playing = True
             
-            # Poczekaj aż faktycznie zacznie odtwarzać (nie tylko przygotowuje bufor)
-            for _ in range(50):
-                if self.media_player.get_state() == vlc.State.Playing:
-                    break
-                time.sleep(0.01)
+            # Czekamy na zdarzenie z EventManager (timeout 1.5s na wypadek problemu z ładowaniem)
+            self.play_event.wait(timeout=1.5)
                 
-            time.sleep(0.1) # Dodatkowy bufor na ustabilizowanie dekodera wideo
+            time.sleep(0.1) 
             self.media_player.video_set_adjust_int(vlc.VideoAdjustOption.Enable, 1)
+            self.media_player.video_set_adjust_float(vlc.VideoAdjustOption.Brightness, 1.0)
             
-            has_audio = (self.media_player.audio_get_track_count() > 0)
+            self.media_player.audio_set_mute(False)
+
             
-            for i in range(steps_in):
-                vol = target_vol * ((i + 1) / steps_in)
-                bri = (i + 1) / steps_in
-                if has_audio: self.media_player.audio_set_volume(int(min(target_vol, vol)))
-                self.media_player.video_set_adjust_float(vlc.VideoAdjustOption.Brightness, min(1.0, bri))
-                time.sleep(step_sleep_in)
-        except Exception:
-            pass
+        except Exception as e:
+            logging.error("Błąd podczas odtwarzania (transition_thread):", exc_info=True)
         finally:
             self.is_transitioning = False
 
@@ -822,8 +759,8 @@ class App(QMainWindow):
                 
             self.stop_media()
             self.media_player.video_set_adjust_float(vlc.VideoAdjustOption.Brightness, 1.0)
-        except Exception:
-            pass
+        except Exception as e:
+            logging.error("Błąd podczas ściemniania (fade_out_thread):", exc_info=True)
         finally:
             self.is_transitioning = False
 

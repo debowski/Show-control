@@ -26,7 +26,7 @@ from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                              QFileDialog, QMessageBox, QCheckBox, QStackedLayout, 
                              QLabel, QFrame, QGroupBox, QAbstractItemView, QSizePolicy,
                              QLineEdit)
-from PyQt6.QtCore import Qt, QTimer, QSize, pyqtSignal, QAbstractListModel, QModelIndex, QUrl, QSortFilterProxyModel, QSettings
+from PyQt6.QtCore import Qt, QTimer, QSize, pyqtSignal, QAbstractListModel, QModelIndex, QUrl, QSortFilterProxyModel
 from PyQt6.QtGui import QShortcut, QKeySequence, QPainter, QColor, QPixmap, QFont
 
 # --- STAŁE KOLORYSTYCZNE I STYLIZACJA ---
@@ -438,9 +438,7 @@ class PlaylistFilterProxyModel(QSortFilterProxyModel):
 class App(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.settings = QSettings("ShowControl", "OperatorConsole")
-        self.base_title = "Show Control - Operator Console v0.2"
-        self.setWindowTitle(self.base_title)
+        self.setWindowTitle("Show Control - Operator Console v0.2")
         self.setMinimumSize(900, 700)
         
         try:
@@ -473,18 +471,6 @@ class App(QMainWindow):
         self.is_transitioning = False
         self.user_is_seeking = False
         
-        last_project = self.settings.value("last_project", "")
-        if last_project and os.path.exists(last_project):
-            # Używamy QTimer by załadować projekt po pełnym zainicjalizowaniu UI
-            QTimer.singleShot(100, lambda: self._load_project_file(last_project))
-            
-    def update_window_title(self, path):
-        if path:
-            name = os.path.basename(path)
-            self.setWindowTitle(f"{self.base_title} - [{name}]")
-        else:
-            self.setWindowTitle(self.base_title)
-            
     def init_ui(self):
         central = QWidget()
         self.setCentralWidget(central)
@@ -656,7 +642,7 @@ class App(QMainWindow):
         self.fade_speed_slider = QSlider(Qt.Orientation.Vertical)
         # Zakres 2–20 (= 0.2s–2.0s, skalujemy /10 → czyli 10 = 1.0s, 20 = 2.0s)
         self.fade_speed_slider.setRange(2, 20)
-        self.fade_speed_slider.setValue(8)   # domyślnie 2.0s
+        self.fade_speed_slider.setValue(20)   # domyślnie 2.0s
         self.fade_speed_slider.setToolTip("Czas trwania efektu fade (0.2s – 2.0s)")
         self.fade_speed_slider.valueChanged.connect(self._on_fade_speed_changed)
         fade_slider_layout.addWidget(fade_title)
@@ -890,9 +876,7 @@ class App(QMainWindow):
 
     def select_logo(self):
         path, _ = QFileDialog.getOpenFileName(self, "Logo", "", "Images (*.png *.jpg *.jpeg *.bmp)")
-        if path:
-            self._logo_path = path
-            self.projection_window.visualizer.logo_pixmap = QPixmap(path)
+        if path: self.projection_window.visualizer.logo_pixmap = QPixmap(path)
 
     def toggle_projection_fullscreen(self):
         if self.projection_window.isFullScreen(): self.projection_window.showNormal()
@@ -933,52 +917,27 @@ class App(QMainWindow):
         path, _ = QFileDialog.getSaveFileName(self, "Zapisz", "", "JSON (*.json)")
         if path:
             try:
-                project = {
-                    "files": [self.playlist_model._data[i]['path'] for i in range(self.playlist_model.rowCount())],
-                    "logo": getattr(self, '_logo_path', None)
-                }
-                with open(path, 'w', encoding='utf-8') as f: json.dump(project, f, ensure_ascii=False, indent=4)
-                self.settings.setValue("last_project", path)
-                self.update_window_title(path)
+                items = [self.playlist_model._data[i]['path'] for i in range(self.playlist_model.rowCount())]
+                with open(path, 'w', encoding='utf-8') as f: json.dump(items, f, ensure_ascii=False, indent=4)
             except Exception as e:
                 QMessageBox.critical(self, "Błąd zapisu", f"Nie udało się zapisać projektu:\n{e}")
 
     def load_project(self):
         path, _ = QFileDialog.getOpenFileName(self, "Wczytaj", "", "JSON (*.json)")
         if path:
-            self._load_project_file(path)
-            
-    def _load_project_file(self, path):
-        try:
-            with open(path, 'r', encoding='utf-8') as f: data = json.load(f)
-            
-            # Obsługa obu formatów: stary (lista) i nowy (słownik)
-            if isinstance(data, list):
-                files = data
-                logo_path = None
-            else:
-                files = data.get('files', [])
-                logo_path = data.get('logo', None)
-            
-            self.playlist_model.beginResetModel()
-            self.playlist_model._data = []
-            self.playlist_model.playing_row = -1
-            self.playlist_model.endResetModel()
-            for p in files:
-                if os.path.exists(p):
-                    self.playlist_model.add_file(p)
-                else:
-                    print(f"Pominięto brakujący plik podczas wczytywania: {p}")
-            
-            # Przywróć logo jeśli zapisane i plik nadal istnieje
-            if logo_path and os.path.exists(logo_path):
-                self._logo_path = logo_path
-                self.projection_window.visualizer.logo_pixmap = QPixmap(logo_path)
-            
-            self.settings.setValue("last_project", path)
-            self.update_window_title(path)
-        except Exception as e:
-            QMessageBox.critical(self, "Błąd odczytu", f"Nie udało się wczytać projektu:\n{e}")
+            try:
+                with open(path, 'r', encoding='utf-8') as f: items = json.load(f)
+                self.playlist_model.beginResetModel()
+                self.playlist_model._data = []
+                self.playlist_model.playing_row = -1
+                self.playlist_model.endResetModel()
+                for p in items:
+                    if os.path.exists(p):
+                        self.playlist_model.add_file(p)
+                    else:
+                        print(f"Pominięto brakujący plik podczas wczytywania: {p}")
+            except Exception as e:
+                QMessageBox.critical(self, "Błąd odczytu", f"Nie udało się wczytać projektu:\n{e}")
 
     def closeEvent(self, event): self.projection_window.close(); super().closeEvent(event)
 

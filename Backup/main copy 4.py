@@ -656,7 +656,7 @@ class App(QMainWindow):
         self.fade_speed_slider = QSlider(Qt.Orientation.Vertical)
         # Zakres 2–20 (= 0.2s–2.0s, skalujemy /10 → czyli 10 = 1.0s, 20 = 2.0s)
         self.fade_speed_slider.setRange(2, 20)
-        self.fade_speed_slider.setValue(8)   # domyślnie 2.0s
+        self.fade_speed_slider.setValue(20)   # domyślnie 2.0s
         self.fade_speed_slider.setToolTip("Czas trwania efektu fade (0.2s – 2.0s)")
         self.fade_speed_slider.valueChanged.connect(self._on_fade_speed_changed)
         fade_slider_layout.addWidget(fade_title)
@@ -890,9 +890,7 @@ class App(QMainWindow):
 
     def select_logo(self):
         path, _ = QFileDialog.getOpenFileName(self, "Logo", "", "Images (*.png *.jpg *.jpeg *.bmp)")
-        if path:
-            self._logo_path = path
-            self.projection_window.visualizer.logo_pixmap = QPixmap(path)
+        if path: self.projection_window.visualizer.logo_pixmap = QPixmap(path)
 
     def toggle_projection_fullscreen(self):
         if self.projection_window.isFullScreen(): self.projection_window.showNormal()
@@ -933,11 +931,8 @@ class App(QMainWindow):
         path, _ = QFileDialog.getSaveFileName(self, "Zapisz", "", "JSON (*.json)")
         if path:
             try:
-                project = {
-                    "files": [self.playlist_model._data[i]['path'] for i in range(self.playlist_model.rowCount())],
-                    "logo": getattr(self, '_logo_path', None)
-                }
-                with open(path, 'w', encoding='utf-8') as f: json.dump(project, f, ensure_ascii=False, indent=4)
+                items = [self.playlist_model._data[i]['path'] for i in range(self.playlist_model.rowCount())]
+                with open(path, 'w', encoding='utf-8') as f: json.dump(items, f, ensure_ascii=False, indent=4)
                 self.settings.setValue("last_project", path)
                 self.update_window_title(path)
             except Exception as e:
@@ -950,31 +945,16 @@ class App(QMainWindow):
             
     def _load_project_file(self, path):
         try:
-            with open(path, 'r', encoding='utf-8') as f: data = json.load(f)
-            
-            # Obsługa obu formatów: stary (lista) i nowy (słownik)
-            if isinstance(data, list):
-                files = data
-                logo_path = None
-            else:
-                files = data.get('files', [])
-                logo_path = data.get('logo', None)
-            
+            with open(path, 'r', encoding='utf-8') as f: items = json.load(f)
             self.playlist_model.beginResetModel()
             self.playlist_model._data = []
             self.playlist_model.playing_row = -1
             self.playlist_model.endResetModel()
-            for p in files:
+            for p in items:
                 if os.path.exists(p):
                     self.playlist_model.add_file(p)
                 else:
                     print(f"Pominięto brakujący plik podczas wczytywania: {p}")
-            
-            # Przywróć logo jeśli zapisane i plik nadal istnieje
-            if logo_path and os.path.exists(logo_path):
-                self._logo_path = logo_path
-                self.projection_window.visualizer.logo_pixmap = QPixmap(logo_path)
-            
             self.settings.setValue("last_project", path)
             self.update_window_title(path)
         except Exception as e:

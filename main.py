@@ -416,6 +416,36 @@ class PlaylistModel(QAbstractListModel):
         if row != -1:
             self.dataChanged.emit(self.index(row, 0), self.index(row, 0))
 
+class PlaylistView(QListView):
+    """QListView z obsługą drag & drop plików z zewnętrznych aplikacji (np. Eksplorator)."""
+
+    def dragEnterEvent(self, event):
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+        else:
+            super().dragEnterEvent(event)
+
+    def dragMoveEvent(self, event):
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+        else:
+            super().dragMoveEvent(event)
+
+    def dropEvent(self, event):
+        if event.mimeData().hasUrls():
+            event.setDropAction(Qt.DropAction.CopyAction)
+            event.accept()
+            # Przekaż do modelu przez standardowy mechanizm Qt
+            model = self.model()
+            if model:
+                pos = event.position().toPoint()
+                idx = self.indexAt(pos)
+                row = idx.row() if idx.isValid() else -1
+                model.dropMimeData(event.mimeData(), Qt.DropAction.CopyAction, row, 0, idx.parent())
+        else:
+            super().dropEvent(event)
+
+
 class PlaylistFilterProxyModel(QSortFilterProxyModel):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -549,16 +579,17 @@ class App(QMainWindow):
         self.proxy_model = PlaylistFilterProxyModel(self)
         self.proxy_model.setSourceModel(self.playlist_model)
         
-        self.playlist = QListView(self)
+        self.playlist = PlaylistView(self)
         self.playlist.setModel(self.proxy_model)
         self.playlist.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.playlist.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.playlist.setAlternatingRowColors(True)
         
         # Konfiguracja Drag & Drop
+        # DragDrop (nie InternalMove) pozwala akceptować pliki z zewnątrz (Eksplorator)
         self.playlist.setDragEnabled(True)
         self.playlist.setAcceptDrops(True)
-        self.playlist.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
+        self.playlist.setDragDropMode(QAbstractItemView.DragDropMode.DragDrop)
         self.playlist.setDropIndicatorShown(True)
         self.playlist.setDefaultDropAction(Qt.DropAction.MoveAction)
         

@@ -565,7 +565,7 @@ class App(QMainWindow):
         layout.addWidget(self.playlist, stretch=1)
 
         # --- SEKCJA TRANSPORTU ---
-        transport_frame = QGroupBox("Kontrola Transportu")
+        transport_frame = QGroupBox("Kontrola odtwarzania")
         trans_layout = QVBoxLayout(transport_frame)
         self.progress_slider = QSlider(Qt.Orientation.Horizontal)
         self.progress_slider.setRange(0, 1000)
@@ -627,7 +627,7 @@ class App(QMainWindow):
         view_layout.addWidget(self.fade_btn)
         view_layout.addWidget(self.fullscreen_btn)
         
-        audio_group = QGroupBox("Audio")
+        audio_group = QGroupBox("Sterowanie")
         audio_main_layout = QHBoxLayout(audio_group)
         
         # --- Suwak głośności ---
@@ -662,8 +662,26 @@ class App(QMainWindow):
         fade_slider_layout.addWidget(self.fade_speed_label)
         fade_slider_layout.addWidget(self.fade_speed_slider, alignment=Qt.AlignmentFlag.AlignHCenter)
         
+        # --- Suwak jasności ---
+        bri_slider_layout = QVBoxLayout()
+        bri_title = QLabel("💡 Jasność")
+        bri_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        bri_title.setStyleSheet("font-size: 8pt; color: #aaaaaa;")
+        self.bri_label = QLabel("100%")
+        self.bri_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.brightness_slider = QSlider(Qt.Orientation.Vertical)
+        self.brightness_slider.setRange(0, 100)
+        self.brightness_slider.setValue(100)
+        self.brightness_slider.setToolTip("Jasność okna projekcji (0% – 100%)")
+        self.brightness_slider.valueChanged.connect(self.set_brightness)
+        bri_slider_layout.addWidget(bri_title)
+        bri_slider_layout.addWidget(self.bri_label)
+        bri_slider_layout.addWidget(self.brightness_slider, alignment=Qt.AlignmentFlag.AlignHCenter)
+
         audio_main_layout.addStretch()
         audio_main_layout.addLayout(vol_slider_layout)
+        audio_main_layout.addSpacing(12)
+        audio_main_layout.addLayout(bri_slider_layout)
         audio_main_layout.addSpacing(12)
         audio_main_layout.addLayout(fade_slider_layout)
         audio_main_layout.addStretch()
@@ -727,6 +745,14 @@ class App(QMainWindow):
     def set_volume(self, value):
         self.media_player.audio_set_volume(value)
         self.vol_label.setText(f"{value}%")
+
+    def set_brightness(self, value):
+        bri = value / 100.0
+        self.media_player.video_set_adjust_float(vlc.VideoAdjustOption.Brightness, bri)
+        self.media_player.video_set_adjust_float(vlc.VideoAdjustOption.Contrast, bri)
+        self.projection_window.logo_viewer.opacity = bri
+        self.projection_window.logo_viewer.update()
+        self.bri_label.setText(f"{value}%")
 
     def _on_fade_speed_changed(self, value):
         # value: 2–20, gdzie 10 = 1.0s, 20 = 2.0s
@@ -815,7 +841,11 @@ class App(QMainWindow):
                 
             time.sleep(0.1) 
             self.media_player.video_set_adjust_int(vlc.VideoAdjustOption.Enable, 1)
-            self.media_player.video_set_adjust_float(vlc.VideoAdjustOption.Brightness, 1.0)
+            target_bri = self.brightness_slider.value() / 100.0
+            self.media_player.video_set_adjust_float(vlc.VideoAdjustOption.Brightness, target_bri)
+            self.media_player.video_set_adjust_float(vlc.VideoAdjustOption.Contrast, target_bri)
+            self.projection_window.logo_viewer.opacity = target_bri
+            QTimer.singleShot(0, self.projection_window.logo_viewer.update)
             
             self.media_player.audio_set_mute(False)
 
@@ -837,15 +867,22 @@ class App(QMainWindow):
             step_sleep = fade_secs / steps
             has_audio = (self.media_player.audio_get_track_count() > 0)
             start_vol = self.media_player.audio_get_volume() if has_audio else 0
+            start_bri = self.brightness_slider.value() / 100.0
             for i in range(steps):
                 vol = start_vol * (1 - (i + 1) / steps)
-                bri = 1.0 - ((i + 1) / steps)
+                bri = start_bri * (1 - (i + 1) / steps)
                 if has_audio: self.media_player.audio_set_volume(int(max(0, vol)))
                 self.media_player.video_set_adjust_float(vlc.VideoAdjustOption.Brightness, max(0.0, bri))
+                self.media_player.video_set_adjust_float(vlc.VideoAdjustOption.Contrast, max(0.0, bri))
+                self.projection_window.logo_viewer.opacity = max(0.0, bri)
+                QTimer.singleShot(0, self.projection_window.logo_viewer.update)
                 time.sleep(step_sleep)
                 
             self.stop_media()
-            self.media_player.video_set_adjust_float(vlc.VideoAdjustOption.Brightness, 1.0)
+            self.media_player.video_set_adjust_float(vlc.VideoAdjustOption.Brightness, start_bri)
+            self.media_player.video_set_adjust_float(vlc.VideoAdjustOption.Contrast, start_bri)
+            self.projection_window.logo_viewer.opacity = start_bri
+            QTimer.singleShot(0, self.projection_window.logo_viewer.update)
         except Exception as e:
             logging.error("Błąd podczas ściemniania (fade_out_thread):", exc_info=True)
         finally:
@@ -859,6 +896,9 @@ class App(QMainWindow):
         if self.media_player.get_state() in (vlc.State.Playing, vlc.State.Paused):
             # Odpinamy wideo przed audio (na czarny ekran) przed stopem
             self.media_player.video_set_adjust_float(vlc.VideoAdjustOption.Brightness, 0.0)
+            self.media_player.video_set_adjust_float(vlc.VideoAdjustOption.Contrast, 0.0)
+            self.projection_window.logo_viewer.opacity = 0.0
+            QTimer.singleShot(0, self.projection_window.logo_viewer.update)
             
             # Zerujemy odtwarzacz matematycznie, BEZ wyciszania gniazda sprzętowego
             has_audio = (self.media_player.audio_get_track_count() > 0)

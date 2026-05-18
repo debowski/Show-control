@@ -621,8 +621,8 @@ class App(QMainWindow):
         self.fade_btn.setObjectName("FadeBtn")
         self.fade_btn.setToolTip("Płynne wyciszenie i ściemnienie (F8)")
         self.fade_btn.clicked.connect(self.fade_out)
-        self.fullscreen_btn = QPushButton("📺 Pełny Ekran (F11)")
-        self.fullscreen_btn.setToolTip("Przełącz pełny ekran (F11)")
+        self.fullscreen_btn = QPushButton("📺 Pełny Ekran (F9)")
+        self.fullscreen_btn.setToolTip("Przełącz pełny ekran (F9)")
         self.fullscreen_btn.clicked.connect(self.toggle_projection_fullscreen)
         view_layout.addWidget(self.fade_btn)
         view_layout.addWidget(self.fullscreen_btn)
@@ -696,7 +696,7 @@ class App(QMainWindow):
         self.logo_audio_checkbox.setChecked(True)
         self.logo_audio_checkbox.stateChanged.connect(self.update_logo_visibility)
         
-        self.logo_overlay_checkbox = QCheckBox("Logo Overlay (F9)")
+        self.logo_overlay_checkbox = QCheckBox("Logo Overlay (F11)")
         self.logo_overlay_checkbox.setToolTip("Nałóż logo na obraz (wymusza wyświetlanie logo)")
         self.logo_overlay_checkbox.stateChanged.connect(self.toggle_logo_overlay)
         
@@ -728,9 +728,9 @@ class App(QMainWindow):
         f_keys = {Qt.Key.Key_F3: self.search_input.setFocus,
                   Qt.Key.Key_F4: self.play_media, Qt.Key.Key_F5: self.stop_media,
                   Qt.Key.Key_F6: self.play_previous_file, Qt.Key.Key_F7: self.play_next_file,
-                  Qt.Key.Key_F8: self.fade_out, Qt.Key.Key_F11: self.toggle_projection_fullscreen,
+                  Qt.Key.Key_F8: self.fade_out, Qt.Key.Key_F9: self.toggle_projection_fullscreen,
                   Qt.Key.Key_F10: lambda: self.logo_audio_checkbox.setChecked(not self.logo_audio_checkbox.isChecked()),
-                  Qt.Key.Key_F9: lambda: self.logo_overlay_checkbox.setChecked(not self.logo_overlay_checkbox.isChecked()), Qt.Key.Key_F12: self.save_project}
+                  Qt.Key.Key_F11: lambda: self.logo_overlay_checkbox.setChecked(not self.logo_overlay_checkbox.isChecked()), Qt.Key.Key_F12: self.save_project}
         for k, f in f_keys.items(): QShortcut(QKeySequence(k), self).activated.connect(f)
         self.update_shortcuts()
 

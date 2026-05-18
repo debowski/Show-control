@@ -167,44 +167,14 @@ APP_STYLESHEET = f"""
     }}
 """
 
-class AudioVisualizer(QWidget):
+class LogoViewer(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.bars = 30
         self.logo_pixmap = None
         self.show_logo = True
-        self.heights = [0 for _ in range(self.bars)]
-        self.targets = [0 for _ in range(self.bars)]
-        self.is_active = False
-        self.volume_multiplier = 1.0
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
-        self.timer = QTimer(self)
-        self.timer.timeout.connect(self.update_bars)
-        
-    def start(self):
-        self.is_active = True
-        self.timer.start(50)
-        self.show()
-        
-    def stop(self):
-        self.is_active = False
-        self.timer.stop()
-        self.update()
-        self.hide()
-        
-    def update_bars(self):
-        if not self.is_active: return
-        for i in range(self.bars):
-            if random.random() < 0.2:
-                center_factor = math.sin((i / (self.bars - 1)) * math.pi)
-                self.targets[i] = (random.random()**2 * 100 * center_factor + 10) * self.volume_multiplier
-            else:
-                self.targets[i] *= 0.8
-            self.heights[i] += (self.targets[i] - self.heights[i]) * 0.4
-        self.update()
 
     def paintEvent(self, event):
-        if not self.is_active: return
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         w, h = self.width(), self.height()
@@ -219,23 +189,21 @@ class ProjectionWindow(QWidget):
         self.setWindowTitle("Projekcja - Odtwarzacz")
         self.setStyleSheet("background-color: black;")
         self.video_widget = QWidget()
-        self.vis_container = QWidget()
-        vis_layout = QVBoxLayout(self.vis_container)
-        vis_layout.setContentsMargins(0, 0, 0, 0)
-        self.visualizer = AudioVisualizer()
-        vis_layout.addWidget(self.visualizer)
+        self.logo_container = QWidget()
+        logo_layout = QVBoxLayout(self.logo_container)
+        logo_layout.setContentsMargins(0, 0, 0, 0)
+        self.logo_viewer = LogoViewer()
+        logo_layout.addWidget(self.logo_viewer)
         self.stacked_layout = QStackedLayout(self)
         self.stacked_layout.addWidget(self.video_widget)
-        self.stacked_layout.addWidget(self.vis_container)
+        self.stacked_layout.addWidget(self.logo_container)
         self.set_mode_video()
 
     def set_mode_video(self):
         self.stacked_layout.setCurrentWidget(self.video_widget)
-        self.visualizer.stop()
         
     def set_mode_audio(self):
-        self.stacked_layout.setCurrentWidget(self.vis_container)
-        self.visualizer.start()
+        self.stacked_layout.setCurrentWidget(self.logo_container)
         
     def mouseDoubleClickEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
@@ -758,7 +726,6 @@ class App(QMainWindow):
 
     def set_volume(self, value):
         self.media_player.audio_set_volume(value)
-        self.projection_window.visualizer.volume_multiplier = value / 100.0
         self.vol_label.setText(f"{value}%")
 
     def _on_fade_speed_changed(self, value):
@@ -923,7 +890,8 @@ class App(QMainWindow):
         path, _ = QFileDialog.getOpenFileName(self, "Logo", "", "Images (*.png *.jpg *.jpeg *.bmp)")
         if path:
             self._logo_path = path
-            self.projection_window.visualizer.logo_pixmap = QPixmap(path)
+            self.projection_window.logo_viewer.logo_pixmap = QPixmap(path)
+            self.projection_window.logo_viewer.update()
 
     def toggle_projection_fullscreen(self):
         if self.projection_window.isFullScreen(): self.projection_window.showNormal()
@@ -953,7 +921,9 @@ class App(QMainWindow):
                 self.projection_window.set_mode_audio() if is_audio else self.projection_window.set_mode_video()
             else: self.projection_window.set_mode_video()
 
-    def update_logo_visibility(self): self.projection_window.visualizer.show_logo = self.logo_audio_checkbox.isChecked()
+    def update_logo_visibility(self):
+        self.projection_window.logo_viewer.show_logo = self.logo_audio_checkbox.isChecked()
+        self.projection_window.logo_viewer.update()
     def set_position(self, v): self.media_player.set_position(v / 1000.0)
     def slider_released(self): self.user_is_seeking = False; self.set_position(self.progress_slider.value())
     
@@ -1004,7 +974,8 @@ class App(QMainWindow):
             # Przywróć logo jeśli zapisane i plik nadal istnieje
             if logo_path and os.path.exists(logo_path):
                 self._logo_path = logo_path
-                self.projection_window.visualizer.logo_pixmap = QPixmap(logo_path)
+                self.projection_window.logo_viewer.logo_pixmap = QPixmap(logo_path)
+                self.projection_window.logo_viewer.update()
             
             self.settings.setValue("last_project", path)
             self.update_window_title(path)

@@ -25,7 +25,7 @@ from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                              QHBoxLayout, QPushButton, QSlider, QListView, 
                              QFileDialog, QMessageBox, QCheckBox, QStackedLayout, 
                              QLabel, QFrame, QGroupBox, QAbstractItemView, QSizePolicy,
-                             QLineEdit)
+                             QLineEdit, QSpinBox)
 from PyQt6.QtCore import Qt, QTimer, QSize, pyqtSignal, QAbstractListModel, QModelIndex, QUrl, QSortFilterProxyModel, QSettings
 from PyQt6.QtGui import QShortcut, QKeySequence, QPainter, QColor, QPixmap, QFont
 
@@ -172,6 +172,7 @@ class LogoViewer(QWidget):
         super().__init__(parent)
         self.logo_pixmap = None
         self.show_logo = True
+        self.opacity = 1.0
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
 
     def paintEvent(self, event):
@@ -180,6 +181,7 @@ class LogoViewer(QWidget):
         w, h = self.width(), self.height()
         if self.show_logo and self.logo_pixmap and not self.logo_pixmap.isNull():
             scaled = self.logo_pixmap.scaled(w, h, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+            painter.setOpacity(self.opacity)
             painter.drawPixmap(int((w - scaled.width())/2), int((h - scaled.height())/2), scaled)
 
 class ProjectionWindow(QWidget):
@@ -467,6 +469,11 @@ class App(QMainWindow):
         self.media_player.event_manager().event_attach(vlc.EventType.MediaPlayerPlaying, on_playing)
             
         self.init_ui()
+        self.image_autoplay_timer = QTimer(self)
+        self.image_autoplay_timer.setSingleShot(True)
+        self.image_autoplay_timer.timeout.connect(self._on_image_autoplay_timeout)
+        self.image_autoplay_start = None
+        self.image_autoplay_duration = 0
         self.is_playing = False
         self.is_transitioning = False
         self.user_is_seeking = False
@@ -684,11 +691,28 @@ class App(QMainWindow):
         audio_main_layout.addLayout(bri_slider_layout)
         audio_main_layout.addSpacing(12)
         audio_main_layout.addLayout(fade_slider_layout)
+        audio_main_layout.addSpacing(12)
+
+        image_speed_layout = QVBoxLayout()
+        image_speed_title = QLabel("⏱ Prędkość grafiki")
+        image_speed_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        image_speed_title.setStyleSheet("font-size: 8pt; color: #aaaaaa;")
+        self.image_switch_delay = QSpinBox()
+        self.image_switch_delay.setRange(1, 60)
+        self.image_switch_delay.setValue(5)
+        self.image_switch_delay.setSuffix(" s")
+        self.image_switch_delay.setToolTip("Czas wyświetlania plików graficznych w sekundach przy autoodtwarzaniu")
+        self.image_switch_delay.setFixedWidth(80)
+        image_speed_layout.addWidget(image_speed_title)
+        image_speed_layout.addWidget(self.image_switch_delay, alignment=Qt.AlignmentFlag.AlignHCenter)
+
+        audio_main_layout.addLayout(image_speed_layout)
         audio_main_layout.addStretch()
         
         settings_group = QGroupBox("Ustawienia")
         set_layout = QVBoxLayout(settings_group)
         self.autoplay_checkbox = QCheckBox("Autoodtwarzanie")
+        self.autoplay_checkbox.stateChanged.connect(self._on_autoplay_changed)
         self.remote_checkbox = QCheckBox("Tryb Pilota (L/P)")
         self.remote_checkbox.setChecked(True)
         self.remote_checkbox.stateChanged.connect(self.update_shortcuts)
@@ -726,6 +750,7 @@ class App(QMainWindow):
         self.sc_nav_next = QShortcut(QKeySequence(Qt.Key.Key_Down), self)
         self.sc_nav_next.activated.connect(self.play_next_file)
         f_keys = {Qt.Key.Key_F3: self.search_input.setFocus,
+                  Qt.Key.Key_F2: self.focus_first_track,
                   Qt.Key.Key_F4: self.play_media, Qt.Key.Key_F5: self.stop_media,
                   Qt.Key.Key_F6: self.play_previous_file, Qt.Key.Key_F7: self.play_next_file,
                   Qt.Key.Key_F8: self.fade_out, Qt.Key.Key_F11: self.toggle_projection_fullscreen,
@@ -733,6 +758,13 @@ class App(QMainWindow):
                   Qt.Key.Key_F9: lambda: self.logo_overlay_checkbox.setChecked(not self.logo_overlay_checkbox.isChecked()), Qt.Key.Key_F12: self.save_project}
         for k, f in f_keys.items(): QShortcut(QKeySequence(k), self).activated.connect(f)
         self.update_shortcuts()
+
+    def focus_first_track(self):
+        if self.proxy_model.rowCount() > 0:
+            idx = self.proxy_model.index(0, 0)
+            self.playlist.setCurrentIndex(idx)
+            self.playlist.scrollTo(idx, QListView.ScrollHint.PositionAtTop)
+            self.playlist.setFocus()
 
     def update_shortcuts(self):
         if self.remote_checkbox.isChecked():
@@ -777,17 +809,25 @@ class App(QMainWindow):
                     self.is_playing = False
                     if state == vlc.State.Ended and self.autoplay_checkbox.isChecked(): self.play_next_file()
                 if not self.user_is_seeking:
-                    pos = self.media_player.get_position()
-                    if pos >= 0: self.progress_slider.setValue(int(pos * 1000))
-                    curr, total = self.media_player.get_time(), self.media_player.get_length()
-                    if curr >= 0 and total >= 0:
-                        rem = max(0, total - curr)
-                        self.time_label.setText(f"{self.format_time(curr)} / {self.format_time(total)} (Pozostało: -{self.format_time(rem)})")
-                        
-                        # Zabezpieczenie (self-healing): przesyłamy głośność z suwaka przez 
-                        # pierwsze 2 sekundy, co gwarantuje, że VLC poprawnie to odbierze
-                        if curr < 2000:
-                            self.media_player.audio_set_volume(self.volume_slider.value())
+                    if self._is_current_playing_image() and self.image_autoplay_start is not None:
+                        elapsed = time.time() - self.image_autoplay_start
+                        total = self.image_autoplay_duration
+                        frac = min(1.0, elapsed / total) if total > 0 else 0.0
+                        self.progress_slider.setValue(int(frac * 1000))
+                        rem = max(0, int((total - elapsed) * 1000))
+                        self.time_label.setText(f"{self.format_time(int(elapsed * 1000))} / {self.format_time(int(total * 1000))} (Pozostało: -{self.format_time(rem)})")
+                    else:
+                        pos = self.media_player.get_position()
+                        if pos >= 0: self.progress_slider.setValue(int(pos * 1000))
+                        curr, total = self.media_player.get_time(), self.media_player.get_length()
+                        if curr >= 0 and total >= 0:
+                            rem = max(0, total - curr)
+                            self.time_label.setText(f"{self.format_time(curr)} / {self.format_time(total)} (Pozostało: -{self.format_time(rem)})")
+                            
+                            # Zabezpieczenie (self-healing): przesyłamy głośność z suwaka przez 
+                            # pierwsze 2 sekundy, co gwarantuje, że VLC poprawnie to odbierze
+                            if curr < 2000:
+                                self.media_player.audio_set_volume(self.volume_slider.value())
             elif not self.user_is_seeking:
                 self.progress_slider.setValue(0)
                 self.time_label.setText("00:00 / 00:00 (Pozostało: -00:00)")
@@ -817,12 +857,49 @@ class App(QMainWindow):
             QMessageBox.warning(self, "Błąd pliku", f"Plik nie istnieje lub został przeniesiony:\n{path}")
             return
             
+        self._stop_image_autoplay_timer()
         self.playlist_model.set_playing_row(row)
         if getattr(self, 'logo_overlay_checkbox', None) and self.logo_overlay_checkbox.isChecked(): self.projection_window.set_mode_audio()
         else:
             is_audio = path.lower().endswith(('.mp3', '.wav', '.flac', '.aac', '.ogg', '.m4a'))
             self.projection_window.set_mode_audio() if is_audio else self.projection_window.set_mode_video()
         threading.Thread(target=self._transition_thread, args=(path,), daemon=True).start()
+        if self._is_image_file(path):
+            self._start_image_autoplay_timer()
+
+    def _is_image_file(self, path):
+        return bool(path and path.lower().endswith(('.jpg', '.jpeg', '.png', '.bmp', '.gif')))
+
+    def _start_image_autoplay_timer(self):
+        self._stop_image_autoplay_timer()
+        self.image_autoplay_duration = self.image_switch_delay.value()
+        self.image_autoplay_start = time.time()
+        self.image_autoplay_timer.start(self.image_autoplay_duration * 1000)
+
+    def _stop_image_autoplay_timer(self):
+        if self.image_autoplay_timer.isActive():
+            self.image_autoplay_timer.stop()
+        self.image_autoplay_start = None
+        self.image_autoplay_duration = 0
+
+    def _on_image_autoplay_timeout(self):
+        if self.autoplay_checkbox.isChecked() and self._is_current_playing_image():
+            self.play_next_file()
+
+    def _on_autoplay_changed(self, state):
+        if self._is_current_playing_image():
+            if self.image_autoplay_start is None:
+                self._start_image_autoplay_timer()
+        else:
+            self._stop_image_autoplay_timer()
+
+    def _is_current_playing_image(self):
+        row = self.playlist_model.playing_row
+        if row == -1:
+            return False
+        source_idx = self.playlist_model.index(row, 0)
+        path = self.playlist_model.data(source_idx, Qt.ItemDataRole.UserRole)
+        return self._is_image_file(path)
 
     def _transition_thread(self, path):
         self.is_transitioning = True
@@ -859,6 +936,14 @@ class App(QMainWindow):
         if self.is_playing and not self.is_transitioning:
             threading.Thread(target=self._fade_out_thread, daemon=True).start()
 
+    def _is_current_playing_audio(self):
+        row = self.playlist_model.playing_row
+        if row == -1:
+            return False
+        source_idx = self.playlist_model.index(row, 0)
+        path = self.playlist_model.data(source_idx, Qt.ItemDataRole.UserRole)
+        return bool(path and path.lower().endswith(('.mp3', '.wav', '.flac', '.aac', '.ogg', '.m4a')))
+
     def _fade_out_thread(self):
         self.is_transitioning = True
         try:
@@ -866,23 +951,27 @@ class App(QMainWindow):
             steps = max(5, int(fade_secs * 10))
             step_sleep = fade_secs / steps
             has_audio = (self.media_player.audio_get_track_count() > 0)
+            audio_only = self._is_current_playing_audio()
             start_vol = self.media_player.audio_get_volume() if has_audio else 0
             start_bri = self.brightness_slider.value() / 100.0
             for i in range(steps):
                 vol = start_vol * (1 - (i + 1) / steps)
                 bri = start_bri * (1 - (i + 1) / steps)
-                if has_audio: self.media_player.audio_set_volume(int(max(0, vol)))
-                self.media_player.video_set_adjust_float(vlc.VideoAdjustOption.Brightness, max(0.0, bri))
-                self.media_player.video_set_adjust_float(vlc.VideoAdjustOption.Contrast, max(0.0, bri))
-                self.projection_window.logo_viewer.opacity = max(0.0, bri)
-                QTimer.singleShot(0, self.projection_window.logo_viewer.update)
+                if has_audio:
+                    self.media_player.audio_set_volume(int(max(0, vol)))
+                if not audio_only:
+                    self.media_player.video_set_adjust_float(vlc.VideoAdjustOption.Brightness, max(0.0, bri))
+                    self.media_player.video_set_adjust_float(vlc.VideoAdjustOption.Contrast, max(0.0, bri))
+                    self.projection_window.logo_viewer.opacity = max(0.0, bri)
+                    QTimer.singleShot(0, self.projection_window.logo_viewer.update)
                 time.sleep(step_sleep)
                 
-            self.stop_media()
-            self.media_player.video_set_adjust_float(vlc.VideoAdjustOption.Brightness, start_bri)
-            self.media_player.video_set_adjust_float(vlc.VideoAdjustOption.Contrast, start_bri)
-            self.projection_window.logo_viewer.opacity = start_bri
-            QTimer.singleShot(0, self.projection_window.logo_viewer.update)
+            self.stop_media(keep_logo=audio_only)
+            if not audio_only:
+                self.media_player.video_set_adjust_float(vlc.VideoAdjustOption.Brightness, start_bri)
+                self.media_player.video_set_adjust_float(vlc.VideoAdjustOption.Contrast, start_bri)
+                self.projection_window.logo_viewer.opacity = start_bri
+                QTimer.singleShot(0, self.projection_window.logo_viewer.update)
         except Exception as e:
             logging.error("Błąd podczas ściemniania (fade_out_thread):", exc_info=True)
         finally:
@@ -892,13 +981,15 @@ class App(QMainWindow):
         if self.is_playing: self.media_player.pause() if self.media_player.get_state() == vlc.State.Playing else self.media_player.play()
         else: self.play_media()
 
-    def stop_media(self):
+    def stop_media(self, keep_logo=False):
+        self._stop_image_autoplay_timer()
         if self.media_player.get_state() in (vlc.State.Playing, vlc.State.Paused):
             # Odpinamy wideo przed audio (na czarny ekran) przed stopem
-            self.media_player.video_set_adjust_float(vlc.VideoAdjustOption.Brightness, 0.0)
-            self.media_player.video_set_adjust_float(vlc.VideoAdjustOption.Contrast, 0.0)
-            self.projection_window.logo_viewer.opacity = 0.0
-            QTimer.singleShot(0, self.projection_window.logo_viewer.update)
+            if not keep_logo:
+                self.media_player.video_set_adjust_float(vlc.VideoAdjustOption.Brightness, 0.0)
+                self.media_player.video_set_adjust_float(vlc.VideoAdjustOption.Contrast, 0.0)
+                self.projection_window.logo_viewer.opacity = 0.0
+                QTimer.singleShot(0, self.projection_window.logo_viewer.update)
             
             # Zerujemy odtwarzacz matematycznie, BEZ wyciszania gniazda sprzętowego
             has_audio = (self.media_player.audio_get_track_count() > 0)

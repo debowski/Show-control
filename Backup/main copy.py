@@ -22,12 +22,11 @@ except ImportError:
     sys.exit(1)
 
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
-                             QHBoxLayout, QPushButton, QSlider, QTableWidget, 
-                             QTableWidgetItem, QHeaderView, QFileDialog, 
-                             QMessageBox, QCheckBox, QStackedLayout, QLabel, 
-                             QFrame, QGroupBox, QAbstractItemView, QSizePolicy,
+                             QHBoxLayout, QPushButton, QSlider, QListView, 
+                             QFileDialog, QMessageBox, QCheckBox, QStackedLayout, 
+                             QLabel, QFrame, QGroupBox, QAbstractItemView, QSizePolicy,
                              QLineEdit)
-from PyQt6.QtCore import Qt, QTimer, QSize, pyqtSignal
+from PyQt6.QtCore import Qt, QTimer, QSize, pyqtSignal, QAbstractListModel, QModelIndex, QUrl, QSortFilterProxyModel, QSettings
 from PyQt6.QtGui import QShortcut, QKeySequence, QPainter, QColor, QPixmap, QFont
 
 # --- STAŁE KOLORYSTYCZNE I STYLIZACJA ---
@@ -168,44 +167,14 @@ APP_STYLESHEET = f"""
     }}
 """
 
-class AudioVisualizer(QWidget):
+class LogoViewer(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.bars = 30
         self.logo_pixmap = None
         self.show_logo = True
-        self.heights = [0 for _ in range(self.bars)]
-        self.targets = [0 for _ in range(self.bars)]
-        self.is_active = False
-        self.volume_multiplier = 1.0
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
-        self.timer = QTimer(self)
-        self.timer.timeout.connect(self.update_bars)
-        
-    def start(self):
-        self.is_active = True
-        self.timer.start(50)
-        self.show()
-        
-    def stop(self):
-        self.is_active = False
-        self.timer.stop()
-        self.update()
-        self.hide()
-        
-    def update_bars(self):
-        if not self.is_active: return
-        for i in range(self.bars):
-            if random.random() < 0.2:
-                center_factor = math.sin((i / (self.bars - 1)) * math.pi)
-                self.targets[i] = (random.random()**2 * 100 * center_factor + 10) * self.volume_multiplier
-            else:
-                self.targets[i] *= 0.8
-            self.heights[i] += (self.targets[i] - self.heights[i]) * 0.4
-        self.update()
 
     def paintEvent(self, event):
-        if not self.is_active: return
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         w, h = self.width(), self.height()
@@ -220,23 +189,21 @@ class ProjectionWindow(QWidget):
         self.setWindowTitle("Projekcja - Odtwarzacz")
         self.setStyleSheet("background-color: black;")
         self.video_widget = QWidget()
-        self.vis_container = QWidget()
-        vis_layout = QVBoxLayout(self.vis_container)
-        vis_layout.setContentsMargins(0, 0, 0, 0)
-        self.visualizer = AudioVisualizer()
-        vis_layout.addWidget(self.visualizer)
+        self.logo_container = QWidget()
+        logo_layout = QVBoxLayout(self.logo_container)
+        logo_layout.setContentsMargins(0, 0, 0, 0)
+        self.logo_viewer = LogoViewer()
+        logo_layout.addWidget(self.logo_viewer)
         self.stacked_layout = QStackedLayout(self)
         self.stacked_layout.addWidget(self.video_widget)
-        self.stacked_layout.addWidget(self.vis_container)
+        self.stacked_layout.addWidget(self.logo_container)
         self.set_mode_video()
 
     def set_mode_video(self):
         self.stacked_layout.setCurrentWidget(self.video_widget)
-        self.visualizer.stop()
         
     def set_mode_audio(self):
-        self.stacked_layout.setCurrentWidget(self.vis_container)
-        self.visualizer.start()
+        self.stacked_layout.setCurrentWidget(self.logo_container)
         
     def mouseDoubleClickEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
@@ -259,131 +226,219 @@ class ProjectionWindow(QWidget):
         event.ignore()
         self.hide()
 
-class PlaylistTable(QTableWidget):
+class PlaylistModel(QAbstractListModel):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setColumnCount(1)
-        self.setHorizontalHeaderLabels(["Nazwa pliku"])
-        self.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        self.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        self.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
-        self.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        self.setAlternatingRowColors(True)
-        
-        # Konfiguracja Drag & Drop
-        self.setDragEnabled(True)
-        self.setAcceptDrops(True)
-        self.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
-        self.setDropIndicatorShown(True)
-        self.setDefaultDropAction(Qt.DropAction.MoveAction)
-        
+        self._data = []  # Lista słowników: [{'filename': '...', 'path': '...'}]
         self.playing_row = -1
 
-    def add_file(self, file_path, vlc_instance):
-        filename = os.path.basename(file_path)
-        row = self.rowCount()
-        self.insertRow(row)
+    def rowCount(self, parent=QModelIndex()):
+        return len(self._data)
+
+    def data(self, index, role=Qt.ItemDataRole.DisplayRole):
+        if not index.isValid():
+            return None
+            
+        row = index.row()
+        item = self._data[row]
         
-        name_item = QTableWidgetItem(filename)
-        name_item.setData(Qt.ItemDataRole.UserRole, file_path)
-        name_item.setToolTip(file_path)
-        self.setItem(row, 0, name_item)
+        if role == Qt.ItemDataRole.DisplayRole:
+            return item['filename']
+        elif role == Qt.ItemDataRole.UserRole:
+            return item['path']
+        elif role == Qt.ItemDataRole.ToolTipRole:
+            return item['path']
+        elif role == Qt.ItemDataRole.BackgroundRole:
+            if row == self.playing_row:
+                return QColor("#094771")
+        elif role == Qt.ItemDataRole.FontRole:
+            if row == self.playing_row:
+                return QFont("Segoe UI", 10, QFont.Weight.Bold)
+                
+        return None
+
+    def flags(self, index):
+        default_flags = super().flags(index)
+        if index.isValid():
+            return default_flags | Qt.ItemFlag.ItemIsDragEnabled | Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEnabled
+        else:
+            return default_flags | Qt.ItemFlag.ItemIsDropEnabled
+
+    def supportedDropActions(self):
+        return Qt.DropAction.CopyAction | Qt.DropAction.MoveAction
+
+    def mimeTypes(self):
+        return ["text/uri-list", "application/x-qabstractitemmodeldatalist"]
+
+    def mimeData(self, indexes):
+        mime_data = super().mimeData(indexes)
+        urls = []
+        for index in indexes:
+            if index.isValid():
+                path = self._data[index.row()]['path']
+                urls.append(QUrl.fromLocalFile(path))
+        mime_data.setUrls(urls)
+        return mime_data
+
+    def dropMimeData(self, data, action, row, column, parent):
+        if action == Qt.DropAction.IgnoreAction:
+            return True
+            
+        if data.hasUrls():
+            paths = [url.toLocalFile() for url in data.urls() if os.path.isfile(url.toLocalFile())]
+            if not paths:
+                # Opcjonalnie: wsparcie dla folderów (wymagałoby spacerowania po os.walk, ale zgodnie z wymaganiami na razie zostawiamy tylko pliki)
+                for url in data.urls():
+                    local_path = url.toLocalFile()
+                    if os.path.isdir(local_path):
+                        for root, _, files in os.walk(local_path):
+                            for file in files:
+                                if file.lower().endswith(('.mp4', '.mp3', '.mkv', '.jpg', '.png', '.wav', '.flac', '.aac', '.ogg', '.m4a')):
+                                    paths.append(os.path.join(root, file))
+                                    
+            if not paths:
+                return False
+                
+            begin_row = row if row != -1 else self.rowCount()
+            self.insertRows(begin_row, len(paths), parent)
+            
+            for i, path in enumerate(paths):
+                self._data[begin_row + i] = {
+                    'filename': os.path.basename(path),
+                    'path': path
+                }
+            
+            # Wymuś odświeżenie po dodaniu nowych elementów z zewnątrz
+            self.dataChanged.emit(self.index(begin_row, 0), self.index(begin_row + len(paths) - 1, 0))
+            return True
+            
+        return super().dropMimeData(data, action, row, column, parent)
+
+    def insertRows(self, row, count, parent=QModelIndex()):
+        self.beginInsertRows(parent, row, row + count - 1)
+        for _ in range(count):
+            self._data.insert(row, {'filename': '', 'path': ''})
+        # Aktualizacja indeksu odtwarzania przy wstawianiu powyżej
+        if self.playing_row >= row:
+            self.playing_row += count
+        self.endInsertRows()
+        return True
+
+    def removeRows(self, row, count, parent=QModelIndex()):
+        self.beginRemoveRows(parent, row, row + count - 1)
+        del self._data[row:row+count]
+        # Aktualizacja indeksu odtwarzania przy usuwaniu
+        if self.playing_row >= row and self.playing_row < row + count:
+            self.playing_row = -1
+        elif self.playing_row >= row + count:
+            self.playing_row -= count
+        self.endRemoveRows()
+        return True
+
+    def moveRows(self, sourceParent, sourceRow, count, destinationParent, destinationChild):
+        # Sprawdzamy czy nie przenosimy w to samo miejsce
+        if sourceRow == destinationChild or sourceRow == destinationChild - 1:
+            return False
+            
+        self.beginMoveRows(sourceParent, sourceRow, sourceRow + count - 1, destinationParent, destinationChild)
+        items_to_move = self._data[sourceRow:sourceRow+count]
+        
+        del self._data[sourceRow:sourceRow+count]
+        
+        insert_row = destinationChild
+        if sourceRow < destinationChild:
+            insert_row -= count
+            
+        for i, item in enumerate(items_to_move):
+            self._data.insert(insert_row + i, item)
+            
+        # Aktualizacja indeksu odtwarzania
+        if self.playing_row >= sourceRow and self.playing_row < sourceRow + count:
+            offset = self.playing_row - sourceRow
+            self.playing_row = insert_row + offset
+        else:
+            # Jeśli element przesuwa się przez playing_row
+            if sourceRow < self.playing_row and destinationChild > self.playing_row:
+                self.playing_row -= count
+            elif sourceRow > self.playing_row and destinationChild <= self.playing_row:
+                self.playing_row += count
+                
+        self.endMoveRows()
+        return True
+
+    def add_file(self, file_path):
+        row = self.rowCount()
+        self.insertRows(row, 1)
+        self._data[row] = {
+            'filename': os.path.basename(file_path),
+            'path': file_path
+        }
+        self.dataChanged.emit(self.index(row, 0), self.index(row, 0))
 
     def set_playing_row(self, row):
-        # Wyczyść poprzednie podświetlenie
-        if self.playing_row != -1 and self.playing_row < self.rowCount():
-            for c in range(1):
-                it = self.item(self.playing_row, c)
-                if it:
-                    it.setBackground(QColor("transparent"))
-                    it.setFont(QFont("Segoe UI", 10))
-        
+        old_row = self.playing_row
         self.playing_row = row
-        if self.playing_row != -1 and self.playing_row < self.rowCount():
-            font = QFont("Segoe UI", 10, QFont.Weight.Bold)
-            for c in range(1):
-                it = self.item(self.playing_row, c)
-                if it:
-                    it.setBackground(QColor("#094771"))
-                    it.setFont(font)
+        
+        if old_row != -1:
+            self.dataChanged.emit(self.index(old_row, 0), self.index(old_row, 0))
+        if row != -1:
+            self.dataChanged.emit(self.index(row, 0), self.index(row, 0))
+
+class PlaylistView(QListView):
+    """QListView z obsługą drag & drop plików z zewnętrznych aplikacji (np. Eksplorator)."""
 
     def dragEnterEvent(self, event):
-        if event.mimeData().hasUrls(): event.accept()
-        else: super().dragEnterEvent(event)
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+        else:
+            super().dragEnterEvent(event)
 
     def dragMoveEvent(self, event):
-        if event.mimeData().hasUrls(): event.accept()
-        else: super().dragMoveEvent(event)
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+        else:
+            super().dragMoveEvent(event)
 
     def dropEvent(self, event):
         if event.mimeData().hasUrls():
             event.setDropAction(Qt.DropAction.CopyAction)
             event.accept()
-            for url in event.mimeData().urls():
-                path = url.toLocalFile()
-                if os.path.isfile(path):
-                    self.add_file(path, self.window().vlc_instance)
+            # Przekaż do modelu przez standardowy mechanizm Qt
+            model = self.model()
+            if model:
+                pos = event.position().toPoint()
+                idx = self.indexAt(pos)
+                row = idx.row() if idx.isValid() else -1
+                model.dropMimeData(event.mimeData(), Qt.DropAction.CopyAction, row, 0, idx.parent())
         else:
-            # Ustaw akcję Ignore, żeby Qt samo nie skasowało przeciągniętego elementu
-            event.setDropAction(Qt.DropAction.IgnoreAction)
-            event.accept()
-            
-            source_row = self.currentRow()
-            pos = event.position().toPoint()
-            dest_row = self.rowAt(pos.y())
-            drop_indicator = self.dropIndicatorPosition()
-            
-            if dest_row == -1: 
-                dest_row = self.rowCount()
-            elif drop_indicator == QAbstractItemView.DropIndicatorPosition.BelowItem:
-                dest_row += 1
+            super().dropEvent(event)
 
-            insert_row = dest_row
-            if source_row < dest_row:
-                insert_row -= 1
 
-            if source_row != -1 and source_row != insert_row:
-                old_playing_row = self.playing_row
-                is_playing_moved = (source_row == old_playing_row)
-                
-                # Pobierz elementy z wiersza źródłowego (takeItem zapobiega usunięciu ich z pamięci)
-                row_items = []
-                for col in range(self.columnCount()):
-                    row_items.append(self.takeItem(source_row, col))
-                
-                # Usuń stary wiersz i wstaw nowy w miejscu docelowym
-                self.removeRow(source_row)
-                self.insertRow(insert_row)
-                
-                # Wstaw elementy do nowego wiersza
-                for col, item in enumerate(row_items):
-                    if item:
-                        self.setItem(insert_row, col, item)
-                
-                # Aktualizacja indeksu odtwarzania
-                if is_playing_moved:
-                    self.playing_row = insert_row
-                elif old_playing_row != -1:
-                    if source_row < old_playing_row and insert_row >= old_playing_row:
-                        self.playing_row -= 1
-                    elif source_row > old_playing_row and insert_row <= old_playing_row:
-                        self.playing_row += 1
-                
-                # Odśwież wyróżnienie dla wiersza odtwarzanego
-                if self.playing_row != -1:
-                    font = QFont("Segoe UI", 10, QFont.Weight.Bold)
-                    for c in range(1):
-                        it = self.item(self.playing_row, c)
-                        if it:
-                            it.setBackground(QColor("#094771"))
-                            it.setFont(font)
-                
-                self.setCurrentCell(insert_row, 0)
+class PlaylistFilterProxyModel(QSortFilterProxyModel):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFilterCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+        
+    def filterAcceptsRow(self, source_row, source_parent):
+        # Akceptuj wszystko jeśli filtr pusty
+        if not self.filterRegularExpression().pattern():
+            return True
+            
+        model = self.sourceModel()
+        index = model.index(source_row, 0, source_parent)
+        filename = model.data(index, Qt.ItemDataRole.DisplayRole)
+        
+        if filename:
+            # match instead of indexof
+            return self.filterRegularExpression().match(filename).hasMatch()
+        return False
 
 class App(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Show Control - Operator Console v0.2")
+        self.settings = QSettings("ShowControl", "OperatorConsole")
+        self.base_title = "Show Control - Operator Console v0.2"
+        self.setWindowTitle(self.base_title)
         self.setMinimumSize(900, 700)
         
         try:
@@ -416,6 +471,18 @@ class App(QMainWindow):
         self.is_transitioning = False
         self.user_is_seeking = False
         
+        last_project = self.settings.value("last_project", "")
+        if last_project and os.path.exists(last_project):
+            # Używamy QTimer by załadować projekt po pełnym zainicjalizowaniu UI
+            QTimer.singleShot(100, lambda: self._load_project_file(last_project))
+            
+    def update_window_title(self, path):
+        if path:
+            name = os.path.basename(path)
+            self.setWindowTitle(f"{self.base_title} - [{name}]")
+        else:
+            self.setWindowTitle(self.base_title)
+            
     def init_ui(self):
         central = QWidget()
         self.setCentralWidget(central)
@@ -429,7 +496,7 @@ class App(QMainWindow):
         self.add_btn = QPushButton("✚ Dodaj pliki")
         self.add_btn.setToolTip("Dodaj nowe pliki do listy")
         self.add_btn.clicked.connect(self.add_files)
-        self.remove_btn = QPushButton("✖ Usuń")
+        self.remove_btn = QPushButton("✖ Usuń (Del)")
         self.remove_btn.setToolTip("Usuń zaznaczone pliki (Delete)")
         self.remove_btn.clicked.connect(self.remove_file)
         mgmt_left.addWidget(self.add_btn)
@@ -439,7 +506,7 @@ class App(QMainWindow):
         self.load_proj_btn = QPushButton("📂 Wczytaj Projekt")
         self.load_proj_btn.setToolTip("Wczytaj zapisaną listę plików")
         self.load_proj_btn.clicked.connect(self.load_project)
-        self.save_proj_btn = QPushButton("💾 Zapisz Projekt")
+        self.save_proj_btn = QPushButton("💾 Zapisz Projekt (F12)")
         self.save_proj_btn.setToolTip("Zapisz aktualną listę (F12)")
         self.save_proj_btn.clicked.connect(self.save_project)
         mgmt_right.addWidget(self.load_proj_btn)
@@ -469,19 +536,36 @@ class App(QMainWindow):
         # --- PASEK WYSZUKIWANIA ---
         search_layout = QHBoxLayout()
         self.search_input = QLineEdit()
-        self.search_input.setPlaceholderText("🔍 Wyszukaj utwór po tytule...")
+        self.search_input.setPlaceholderText("🔍 Wyszukaj utwór po tytule... (F3)")
         self.search_input.setClearButtonEnabled(True)
         self.search_input.textChanged.connect(self.filter_playlist)
         search_layout.addWidget(self.search_input)
         layout.addLayout(search_layout)
 
         # --- LISTA PLIKÓW ---
-        self.playlist = PlaylistTable(self)
-        self.playlist.itemDoubleClicked.connect(lambda: self.play_media())
+        self.playlist_model = PlaylistModel(self)
+        self.proxy_model = PlaylistFilterProxyModel(self)
+        self.proxy_model.setSourceModel(self.playlist_model)
+        
+        self.playlist = PlaylistView(self)
+        self.playlist.setModel(self.proxy_model)
+        self.playlist.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.playlist.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.playlist.setAlternatingRowColors(True)
+        
+        # Konfiguracja Drag & Drop
+        # DragDrop (nie InternalMove) pozwala akceptować pliki z zewnątrz (Eksplorator)
+        self.playlist.setDragEnabled(True)
+        self.playlist.setAcceptDrops(True)
+        self.playlist.setDragDropMode(QAbstractItemView.DragDropMode.DragDrop)
+        self.playlist.setDropIndicatorShown(True)
+        self.playlist.setDefaultDropAction(Qt.DropAction.MoveAction)
+        
+        self.playlist.doubleClicked.connect(lambda idx: self.play_media())
         layout.addWidget(self.playlist, stretch=1)
 
         # --- SEKCJA TRANSPORTU ---
-        transport_frame = QGroupBox("Kontrola Transportu")
+        transport_frame = QGroupBox("Kontrola odtwarzania")
         trans_layout = QVBoxLayout(transport_frame)
         self.progress_slider = QSlider(Qt.Orientation.Horizontal)
         self.progress_slider.setRange(0, 1000)
@@ -498,27 +582,27 @@ class App(QMainWindow):
         
         btns_grid = QHBoxLayout()
         btns_grid.setSpacing(5)
-        self.prev_btn = QPushButton("⏮ Poprzedni")
+        self.prev_btn = QPushButton("⏮ Poprzedni (F6/←)")
         self.prev_btn.setObjectName("TransportBtn")
         self.prev_btn.setToolTip("Poprzedni plik (F6 / Strzałka w lewo)")
         self.prev_btn.clicked.connect(self.play_previous_file)
         
-        self.play_btn = QPushButton("▶ PLAY")
+        self.play_btn = QPushButton("▶ PLAY (F4/Enter)")
         self.play_btn.setObjectName("PlayBtn")
         self.play_btn.setToolTip("Odtwórz (F4)")
         self.play_btn.clicked.connect(self.play_media)
         
-        self.pause_btn = QPushButton("⏸ PAUSE")
+        self.pause_btn = QPushButton("⏸ PAUSE (Spacja)")
         self.pause_btn.setObjectName("TransportBtn")
         self.pause_btn.setToolTip("Pauza / Wznów (Spacja)")
         self.pause_btn.clicked.connect(self.toggle_play_pause)
         
-        self.stop_btn = QPushButton("⏹ STOP")
+        self.stop_btn = QPushButton("⏹ STOP (F5)")
         self.stop_btn.setObjectName("StopBtn")
         self.stop_btn.setToolTip("Zatrzymaj odtwarzanie (F5)")
         self.stop_btn.clicked.connect(self.stop_media)
         
-        self.next_btn = QPushButton("Następny ⏭")
+        self.next_btn = QPushButton("Następny ⏭ (F7/→)")
         self.next_btn.setObjectName("TransportBtn")
         self.next_btn.setToolTip("Następny plik (F7 / Strzałka w prawo)")
         self.next_btn.clicked.connect(self.play_next_file)
@@ -533,22 +617,17 @@ class App(QMainWindow):
         bottom_panel = QHBoxLayout()
         view_group = QGroupBox("Widok i Efekty")
         view_layout = QVBoxLayout(view_group)
-        self.fade_btn = QPushButton("✨ Fade Out")
+        self.fade_btn = QPushButton("✨ Fade Out (F8)")
         self.fade_btn.setObjectName("FadeBtn")
         self.fade_btn.setToolTip("Płynne wyciszenie i ściemnienie (F8)")
         self.fade_btn.clicked.connect(self.fade_out)
-        self.fullscreen_btn = QPushButton("📺 Pełny Ekran")
+        self.fullscreen_btn = QPushButton("📺 Pełny Ekran (F9)")
         self.fullscreen_btn.setToolTip("Przełącz pełny ekran (F9)")
         self.fullscreen_btn.clicked.connect(self.toggle_projection_fullscreen)
-        self.logo_overlay_btn = QPushButton("🖼 Logo Overlay")
-        self.logo_overlay_btn.setCheckable(True)
-        self.logo_overlay_btn.setToolTip("Nałóż logo na obraz (F11)")
-        self.logo_overlay_btn.clicked.connect(self.toggle_logo_overlay)
         view_layout.addWidget(self.fade_btn)
         view_layout.addWidget(self.fullscreen_btn)
-        view_layout.addWidget(self.logo_overlay_btn)
         
-        audio_group = QGroupBox("Audio")
+        audio_group = QGroupBox("Sterowanie")
         audio_main_layout = QHBoxLayout(audio_group)
         
         # --- Suwak głośności ---
@@ -576,15 +655,33 @@ class App(QMainWindow):
         self.fade_speed_slider = QSlider(Qt.Orientation.Vertical)
         # Zakres 2–20 (= 0.2s–2.0s, skalujemy /10 → czyli 10 = 1.0s, 20 = 2.0s)
         self.fade_speed_slider.setRange(2, 20)
-        self.fade_speed_slider.setValue(20)   # domyślnie 2.0s
+        self.fade_speed_slider.setValue(8)   # domyślnie 2.0s
         self.fade_speed_slider.setToolTip("Czas trwania efektu fade (0.2s – 2.0s)")
         self.fade_speed_slider.valueChanged.connect(self._on_fade_speed_changed)
         fade_slider_layout.addWidget(fade_title)
         fade_slider_layout.addWidget(self.fade_speed_label)
         fade_slider_layout.addWidget(self.fade_speed_slider, alignment=Qt.AlignmentFlag.AlignHCenter)
         
+        # --- Suwak jasności ---
+        bri_slider_layout = QVBoxLayout()
+        bri_title = QLabel("💡 Jasność")
+        bri_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        bri_title.setStyleSheet("font-size: 8pt; color: #aaaaaa;")
+        self.bri_label = QLabel("100%")
+        self.bri_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.brightness_slider = QSlider(Qt.Orientation.Vertical)
+        self.brightness_slider.setRange(0, 100)
+        self.brightness_slider.setValue(100)
+        self.brightness_slider.setToolTip("Jasność okna projekcji (0% – 100%)")
+        self.brightness_slider.valueChanged.connect(self.set_brightness)
+        bri_slider_layout.addWidget(bri_title)
+        bri_slider_layout.addWidget(self.bri_label)
+        bri_slider_layout.addWidget(self.brightness_slider, alignment=Qt.AlignmentFlag.AlignHCenter)
+
         audio_main_layout.addStretch()
         audio_main_layout.addLayout(vol_slider_layout)
+        audio_main_layout.addSpacing(12)
+        audio_main_layout.addLayout(bri_slider_layout)
         audio_main_layout.addSpacing(12)
         audio_main_layout.addLayout(fade_slider_layout)
         audio_main_layout.addStretch()
@@ -598,9 +695,15 @@ class App(QMainWindow):
         self.logo_audio_checkbox = QCheckBox("Logo dla Audio (F10)")
         self.logo_audio_checkbox.setChecked(True)
         self.logo_audio_checkbox.stateChanged.connect(self.update_logo_visibility)
+        
+        self.logo_overlay_checkbox = QCheckBox("Logo Overlay (F11)")
+        self.logo_overlay_checkbox.setToolTip("Nałóż logo na obraz (wymusza wyświetlanie logo)")
+        self.logo_overlay_checkbox.stateChanged.connect(self.toggle_logo_overlay)
+        
         set_layout.addWidget(self.autoplay_checkbox)
         set_layout.addWidget(self.remote_checkbox)
         set_layout.addWidget(self.logo_audio_checkbox)
+        set_layout.addWidget(self.logo_overlay_checkbox)
         set_layout.addStretch()
         
         bottom_panel.addWidget(view_group, stretch=1)
@@ -622,11 +725,12 @@ class App(QMainWindow):
         self.sc_nav_prev.activated.connect(self.play_previous_file)
         self.sc_nav_next = QShortcut(QKeySequence(Qt.Key.Key_Down), self)
         self.sc_nav_next.activated.connect(self.play_next_file)
-        f_keys = {Qt.Key.Key_F4: self.play_media, Qt.Key.Key_F5: self.stop_media,
+        f_keys = {Qt.Key.Key_F3: self.search_input.setFocus,
+                  Qt.Key.Key_F4: self.play_media, Qt.Key.Key_F5: self.stop_media,
                   Qt.Key.Key_F6: self.play_previous_file, Qt.Key.Key_F7: self.play_next_file,
                   Qt.Key.Key_F8: self.fade_out, Qt.Key.Key_F9: self.toggle_projection_fullscreen,
                   Qt.Key.Key_F10: lambda: self.logo_audio_checkbox.setChecked(not self.logo_audio_checkbox.isChecked()),
-                  Qt.Key.Key_F11: lambda: self.logo_overlay_btn.animateClick(), Qt.Key.Key_F12: self.save_project}
+                  Qt.Key.Key_F11: lambda: self.logo_overlay_checkbox.setChecked(not self.logo_overlay_checkbox.isChecked()), Qt.Key.Key_F12: self.save_project}
         for k, f in f_keys.items(): QShortcut(QKeySequence(k), self).activated.connect(f)
         self.update_shortcuts()
 
@@ -640,8 +744,15 @@ class App(QMainWindow):
 
     def set_volume(self, value):
         self.media_player.audio_set_volume(value)
-        self.projection_window.visualizer.volume_multiplier = value / 100.0
         self.vol_label.setText(f"{value}%")
+
+    def set_brightness(self, value):
+        bri = value / 100.0
+        self.media_player.video_set_adjust_float(vlc.VideoAdjustOption.Brightness, bri)
+        self.media_player.video_set_adjust_float(vlc.VideoAdjustOption.Contrast, bri)
+        self.projection_window.logo_viewer.opacity = bri
+        self.projection_window.logo_viewer.update()
+        self.bri_label.setText(f"{value}%")
 
     def _on_fade_speed_changed(self, value):
         # value: 2–20, gdzie 10 = 1.0s, 20 = 2.0s
@@ -685,27 +796,29 @@ class App(QMainWindow):
 
     def add_files(self):
         files, _ = QFileDialog.getOpenFileNames(self, "Dodaj multimedia", "", "Media (*.mp4 *.mp3 *.mkv *.jpg *.png);;Wszystkie (*.*)")
-        for f in files: self.playlist.add_file(f, self.vlc_instance)
+        for f in files: self.playlist_model.add_file(f)
 
     def remove_file(self):
-        # Zbieramy numery wierszy jako liczby całkowite PRZED jakimkolwiek usuwaniem.
-        # Iteracja po selectedItems() po removeRow() powoduje RuntimeError bo Qt
-        # niszczy obiekty C++ pod spodem Pythona.
-        rows = sorted(set(item.row() for item in self.playlist.selectedItems()), reverse=True)
+        indexes = self.playlist.selectionModel().selectedIndexes()
+        # Mapujemy indeksy z Proxy na model źródłowy
+        source_indexes = [self.proxy_model.mapToSource(idx) for idx in indexes]
+        rows = sorted(set(idx.row() for idx in source_indexes), reverse=True)
         for row in rows:
-            self.playlist.removeRow(row)
+            self.playlist_model.removeRows(row, 1)
 
     def play_media(self):
-        row = self.playlist.currentRow()
-        if row == -1 or self.is_transitioning: return
-        path = self.playlist.item(row, 0).data(Qt.ItemDataRole.UserRole)
+        idx = self.playlist.currentIndex()
+        if not idx.isValid() or self.is_transitioning: return
+        source_idx = self.proxy_model.mapToSource(idx)
+        row = source_idx.row()
+        path = self.playlist_model.data(source_idx, Qt.ItemDataRole.UserRole)
         
         if not path or not os.path.exists(path):
             QMessageBox.warning(self, "Błąd pliku", f"Plik nie istnieje lub został przeniesiony:\n{path}")
             return
             
-        self.playlist.set_playing_row(row)
-        if self.logo_overlay_btn.isChecked(): self.projection_window.set_mode_audio()
+        self.playlist_model.set_playing_row(row)
+        if getattr(self, 'logo_overlay_checkbox', None) and self.logo_overlay_checkbox.isChecked(): self.projection_window.set_mode_audio()
         else:
             is_audio = path.lower().endswith(('.mp3', '.wav', '.flac', '.aac', '.ogg', '.m4a'))
             self.projection_window.set_mode_audio() if is_audio else self.projection_window.set_mode_video()
@@ -728,7 +841,11 @@ class App(QMainWindow):
                 
             time.sleep(0.1) 
             self.media_player.video_set_adjust_int(vlc.VideoAdjustOption.Enable, 1)
-            self.media_player.video_set_adjust_float(vlc.VideoAdjustOption.Brightness, 1.0)
+            target_bri = self.brightness_slider.value() / 100.0
+            self.media_player.video_set_adjust_float(vlc.VideoAdjustOption.Brightness, target_bri)
+            self.media_player.video_set_adjust_float(vlc.VideoAdjustOption.Contrast, target_bri)
+            self.projection_window.logo_viewer.opacity = target_bri
+            QTimer.singleShot(0, self.projection_window.logo_viewer.update)
             
             self.media_player.audio_set_mute(False)
 
@@ -750,15 +867,22 @@ class App(QMainWindow):
             step_sleep = fade_secs / steps
             has_audio = (self.media_player.audio_get_track_count() > 0)
             start_vol = self.media_player.audio_get_volume() if has_audio else 0
+            start_bri = self.brightness_slider.value() / 100.0
             for i in range(steps):
                 vol = start_vol * (1 - (i + 1) / steps)
-                bri = 1.0 - ((i + 1) / steps)
+                bri = start_bri * (1 - (i + 1) / steps)
                 if has_audio: self.media_player.audio_set_volume(int(max(0, vol)))
                 self.media_player.video_set_adjust_float(vlc.VideoAdjustOption.Brightness, max(0.0, bri))
+                self.media_player.video_set_adjust_float(vlc.VideoAdjustOption.Contrast, max(0.0, bri))
+                self.projection_window.logo_viewer.opacity = max(0.0, bri)
+                QTimer.singleShot(0, self.projection_window.logo_viewer.update)
                 time.sleep(step_sleep)
                 
             self.stop_media()
-            self.media_player.video_set_adjust_float(vlc.VideoAdjustOption.Brightness, 1.0)
+            self.media_player.video_set_adjust_float(vlc.VideoAdjustOption.Brightness, start_bri)
+            self.media_player.video_set_adjust_float(vlc.VideoAdjustOption.Contrast, start_bri)
+            self.projection_window.logo_viewer.opacity = start_bri
+            QTimer.singleShot(0, self.projection_window.logo_viewer.update)
         except Exception as e:
             logging.error("Błąd podczas ściemniania (fade_out_thread):", exc_info=True)
         finally:
@@ -772,6 +896,9 @@ class App(QMainWindow):
         if self.media_player.get_state() in (vlc.State.Playing, vlc.State.Paused):
             # Odpinamy wideo przed audio (na czarny ekran) przed stopem
             self.media_player.video_set_adjust_float(vlc.VideoAdjustOption.Brightness, 0.0)
+            self.media_player.video_set_adjust_float(vlc.VideoAdjustOption.Contrast, 0.0)
+            self.projection_window.logo_viewer.opacity = 0.0
+            QTimer.singleShot(0, self.projection_window.logo_viewer.update)
             
             # Zerujemy odtwarzacz matematycznie, BEZ wyciszania gniazda sprzętowego
             has_audio = (self.media_player.audio_get_track_count() > 0)
@@ -783,21 +910,28 @@ class App(QMainWindow):
             
         self.media_player.stop()
         self.is_playing = False
-        self.playlist.set_playing_row(-1)
+        self.playlist_model.set_playing_row(-1)
 
     def play_next_file(self):
-        if self.playlist.currentRow() < self.playlist.rowCount() - 1:
-            self.playlist.setCurrentCell(self.playlist.currentRow() + 1, 0)
+        idx = self.playlist.currentIndex()
+        if idx.isValid() and idx.row() < self.proxy_model.rowCount() - 1:
+            new_idx = self.proxy_model.index(idx.row() + 1, 0)
+            self.playlist.setCurrentIndex(new_idx)
             self.play_media()
 
     def play_previous_file(self):
-        if self.playlist.currentRow() > 0:
-            self.playlist.setCurrentCell(self.playlist.currentRow() - 1, 0)
+        idx = self.playlist.currentIndex()
+        if idx.isValid() and idx.row() > 0:
+            new_idx = self.proxy_model.index(idx.row() - 1, 0)
+            self.playlist.setCurrentIndex(new_idx)
             self.play_media()
 
     def select_logo(self):
         path, _ = QFileDialog.getOpenFileName(self, "Logo", "", "Images (*.png *.jpg *.jpeg *.bmp)")
-        if path: self.projection_window.visualizer.logo_pixmap = QPixmap(path)
+        if path:
+            self._logo_path = path
+            self.projection_window.logo_viewer.logo_pixmap = QPixmap(path)
+            self.projection_window.logo_viewer.update()
 
     def toggle_projection_fullscreen(self):
         if self.projection_window.isFullScreen(): self.projection_window.showNormal()
@@ -819,45 +953,74 @@ class App(QMainWindow):
     def toggle_logo_overlay(self, checked):
         if checked: self.projection_window.set_mode_audio()
         else:
-            row = self.playlist.currentRow()
+            row = self.playlist_model.playing_row
             if row != -1:
-                path = self.playlist.item(row, 0).data(Qt.ItemDataRole.UserRole)
+                source_idx = self.playlist_model.index(row, 0)
+                path = self.playlist_model.data(source_idx, Qt.ItemDataRole.UserRole)
                 is_audio = path.lower().endswith(('.mp3', '.wav', '.flac', '.aac', '.ogg', '.m4a'))
                 self.projection_window.set_mode_audio() if is_audio else self.projection_window.set_mode_video()
             else: self.projection_window.set_mode_video()
 
-    def update_logo_visibility(self): self.projection_window.visualizer.show_logo = self.logo_audio_checkbox.isChecked()
+    def update_logo_visibility(self):
+        self.projection_window.logo_viewer.show_logo = self.logo_audio_checkbox.isChecked()
+        self.projection_window.logo_viewer.update()
     def set_position(self, v): self.media_player.set_position(v / 1000.0)
     def slider_released(self): self.user_is_seeking = False; self.set_position(self.progress_slider.value())
     
     def filter_playlist(self, text):
-        search_text = text.lower()
-        for row in range(self.playlist.rowCount()):
-            item = self.playlist.item(row, 0)
-            if item: self.playlist.setRowHidden(row, search_text not in item.text().lower())
+        self.proxy_model.setFilterRegularExpression(text)
 
     def save_project(self):
         path, _ = QFileDialog.getSaveFileName(self, "Zapisz", "", "JSON (*.json)")
         if path:
             try:
-                items = [self.playlist.item(i, 0).data(Qt.ItemDataRole.UserRole) for i in range(self.playlist.rowCount()) if self.playlist.item(i, 0)]
-                with open(path, 'w', encoding='utf-8') as f: json.dump(items, f, ensure_ascii=False, indent=4)
+                project = {
+                    "files": [self.playlist_model._data[i]['path'] for i in range(self.playlist_model.rowCount())],
+                    "logo": getattr(self, '_logo_path', None)
+                }
+                with open(path, 'w', encoding='utf-8') as f: json.dump(project, f, ensure_ascii=False, indent=4)
+                self.settings.setValue("last_project", path)
+                self.update_window_title(path)
             except Exception as e:
                 QMessageBox.critical(self, "Błąd zapisu", f"Nie udało się zapisać projektu:\n{e}")
 
     def load_project(self):
         path, _ = QFileDialog.getOpenFileName(self, "Wczytaj", "", "JSON (*.json)")
         if path:
-            try:
-                with open(path, 'r', encoding='utf-8') as f: items = json.load(f)
-                self.playlist.setRowCount(0)
-                for p in items:
-                    if os.path.exists(p):
-                        self.playlist.add_file(p, self.vlc_instance)
-                    else:
-                        print(f"Pominięto brakujący plik podczas wczytywania: {p}")
-            except Exception as e:
-                QMessageBox.critical(self, "Błąd odczytu", f"Nie udało się wczytać projektu:\n{e}")
+            self._load_project_file(path)
+            
+    def _load_project_file(self, path):
+        try:
+            with open(path, 'r', encoding='utf-8') as f: data = json.load(f)
+            
+            # Obsługa obu formatów: stary (lista) i nowy (słownik)
+            if isinstance(data, list):
+                files = data
+                logo_path = None
+            else:
+                files = data.get('files', [])
+                logo_path = data.get('logo', None)
+            
+            self.playlist_model.beginResetModel()
+            self.playlist_model._data = []
+            self.playlist_model.playing_row = -1
+            self.playlist_model.endResetModel()
+            for p in files:
+                if os.path.exists(p):
+                    self.playlist_model.add_file(p)
+                else:
+                    print(f"Pominięto brakujący plik podczas wczytywania: {p}")
+            
+            # Przywróć logo jeśli zapisane i plik nadal istnieje
+            if logo_path and os.path.exists(logo_path):
+                self._logo_path = logo_path
+                self.projection_window.logo_viewer.logo_pixmap = QPixmap(logo_path)
+                self.projection_window.logo_viewer.update()
+            
+            self.settings.setValue("last_project", path)
+            self.update_window_title(path)
+        except Exception as e:
+            QMessageBox.critical(self, "Błąd odczytu", f"Nie udało się wczytać projektu:\n{e}")
 
     def closeEvent(self, event): self.projection_window.close(); super().closeEvent(event)
 

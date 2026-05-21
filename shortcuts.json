@@ -1,0 +1,23 @@
+{
+  "play_pause": "Space",
+  "remove_file": "Delete",
+  "play_media": ["Return", "Enter"],
+  "search": "f",
+  "focus_first_track": "F2",
+  "play": "F4",
+  "stop": "F5",
+  "previous": "F6",
+  "next": "F7",
+  "fade_out": "F8",
+  "toggle_logo_overlay": "F9",
+  "toggle_logo_audio": "F10",
+  "fullscreen": "F11",
+  "save_project": "F12",
+
+  "navigation": {
+    "default_previous": "Up",
+    "default_next": "Down",
+    "remote_previous": "Left",
+    "remote_next": "Right"
+  }
+}

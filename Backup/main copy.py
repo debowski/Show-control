@@ -6,10 +6,7 @@
 import sys
 import os
 import time
-import threading
 import json
-import random
-import math
 import logging
 
 logging.basicConfig(level=logging.ERROR, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -24,10 +21,125 @@ except ImportError:
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                              QHBoxLayout, QPushButton, QSlider, QListView, 
                              QFileDialog, QMessageBox, QCheckBox, QStackedLayout, 
-                             QLabel, QFrame, QGroupBox, QAbstractItemView, QSizePolicy,
+                             QLabel, QGroupBox, QAbstractItemView, QSizePolicy,
                              QLineEdit, QSpinBox)
-from PyQt6.QtCore import Qt, QTimer, QSize, pyqtSignal, QAbstractListModel, QModelIndex, QUrl, QSortFilterProxyModel, QSettings
+from PyQt6.QtCore import Qt, QTimer, QAbstractListModel, QModelIndex, QUrl, QSortFilterProxyModel, QSettings
 from PyQt6.QtGui import QShortcut, QKeySequence, QPainter, QColor, QPixmap, QFont
+
+MEDIA_EXTENSIONS = ('.mp4', '.mp3', '.mkv', '.jpg', '.jpeg', '.png', '.bmp', '.gif', '.wav', '.flac', '.aac', '.ogg', '.m4a')
+AUDIO_EXTENSIONS = ('.mp3', '.wav', '.flac', '.aac', '.ogg', '.m4a')
+IMAGE_EXTENSIONS = ('.jpg', '.jpeg', '.png', '.bmp', '.gif')
+PROJECT_FILE_FILTER = "JSON (*.json)"
+MEDIA_FILE_FILTER = "Media (*.mp4 *.mp3 *.mkv *.jpg *.png);;Wszystkie (*.*)"
+IMAGE_FILE_FILTER = "Images (*.png *.jpg *.jpeg *.bmp)"
+EMPTY_TIME_LABEL = "00:00 / 00:00 (Pozostało: -00:00)"
+
+KEYBOARD_SHORTCUTS = {
+    "search": {"keys": [Qt.Key.Key_F3]},
+    "focus_playlist": {"keys": [Qt.Key.Key_F2]},
+    "play": {
+        "keys": [Qt.Key.Key_F4],
+        "playlist_keys": [Qt.Key.Key_Return, Qt.Key.Key_Enter],
+    },
+    "pause": {"keys": [Qt.Key.Key_Space]},
+    "stop": {"keys": [Qt.Key.Key_F5]},
+    "remove": {"keys": [Qt.Key.Key_Delete]},
+    "save_project": {"keys": [Qt.Key.Key_F12]},
+    "fade_out": {"keys": [Qt.Key.Key_F1]},
+    "fullscreen": {"keys": [Qt.Key.Key_F11]},
+    "logo_audio": {"keys": [Qt.Key.Key_F10]},
+    "logo_overlay": {"keys": [Qt.Key.Key_F9]},
+    "previous": {
+        "keys": [Qt.Key.Key_F6],
+        "navigation": {
+            "remote": Qt.Key.Key_Left,
+            "standard": Qt.Key.Key_Up,
+        },
+    },
+    "next": {
+        "keys": [Qt.Key.Key_F7],
+        "navigation": {
+            "remote": Qt.Key.Key_Right,
+            "standard": Qt.Key.Key_Down,
+        },
+    },
+}
+
+KEY_LABELS = {
+    Qt.Key.Key_Delete: "Del",
+    Qt.Key.Key_Down: "↓",
+    Qt.Key.Key_Enter: "Enter",
+    Qt.Key.Key_Left: "←",
+    Qt.Key.Key_Return: "Enter",
+    Qt.Key.Key_Right: "→",
+    Qt.Key.Key_Space: "Spacja",
+    Qt.Key.Key_Up: "↑",
+}
+
+KEY_TOOLTIP_LABELS = {
+    Qt.Key.Key_Delete: "Delete",
+    Qt.Key.Key_Down: "Strzałka w dół",
+    Qt.Key.Key_Left: "Strzałka w lewo",
+    Qt.Key.Key_Right: "Strzałka w prawo",
+    Qt.Key.Key_Up: "Strzałka w górę",
+}
+
+
+def key_label(key, tooltip=False):
+    labels = KEY_TOOLTIP_LABELS if tooltip else KEY_LABELS
+    return labels.get(key, QKeySequence(key).toString(QKeySequence.SequenceFormat.NativeText))
+
+
+def shortcut_label(name, groups=("keys",), extra_keys=None, separator="/", tooltip=False):
+    keys = []
+    for group in groups:
+        keys.extend(KEYBOARD_SHORTCUTS[name].get(group, []))
+    if extra_keys:
+        keys.extend(extra_keys)
+
+    labels = []
+    for key in keys:
+        label = key_label(key, tooltip)
+        if label and label not in labels:
+            labels.append(label)
+    return separator.join(labels)
+
+
+def navigation_shortcut(name, remote_enabled):
+    mode = "remote" if remote_enabled else "standard"
+    return KEYBOARD_SHORTCUTS[name]["navigation"][mode]
+
+
+def has_extension(path, extensions):
+    return bool(path and path.lower().endswith(extensions))
+
+
+def is_audio_file(path):
+    return has_extension(path, AUDIO_EXTENSIONS)
+
+
+def is_image_file(path):
+    return has_extension(path, IMAGE_EXTENSIONS)
+
+
+def is_supported_media_file(path):
+    return has_extension(path, MEDIA_EXTENSIONS)
+
+
+def find_media_paths(path):
+    if os.path.isfile(path):
+        return [path] if is_supported_media_file(path) else []
+
+    if not os.path.isdir(path):
+        return []
+
+    paths = []
+    for root, _, files in os.walk(path):
+        for filename in files:
+            media_path = os.path.join(root, filename)
+            if is_supported_media_file(media_path):
+                paths.append(media_path)
+    return paths
 
 # --- STAŁE KOLORYSTYCZNE I STYLIZACJA ---
 COLOR_BG_MAIN = "#1e1e1e"
@@ -107,6 +219,18 @@ APP_STYLESHEET = f"""
     QPushButton#FadeBtn:hover {{ background-color: #e5951a; }}
     
     QPushButton#HideBtn {{ background-color: {COLOR_HIDE}; color: #cccccc; }}
+
+    QPushButton[flash="true"],
+    QPushButton#PlayBtn[flash="true"],
+    QPushButton#StopBtn[flash="true"],
+    QPushButton#TransportBtn[flash="true"],
+    QPushButton#FadeBtn[flash="true"],
+    QPushButton#HideBtn[flash="true"] {{
+        background-color: {COLOR_ACCENT};
+        color: white;
+        border: 2px solid #6bbcff;
+        font-weight: bold;
+    }}
     
     /* Tabela */
     QTableWidget {{
@@ -263,8 +387,7 @@ class PlaylistModel(QAbstractListModel):
         default_flags = super().flags(index)
         if index.isValid():
             return default_flags | Qt.ItemFlag.ItemIsDragEnabled | Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEnabled
-        else:
-            return default_flags | Qt.ItemFlag.ItemIsDropEnabled
+        return default_flags | Qt.ItemFlag.ItemIsDropEnabled
 
     def supportedDropActions(self):
         return Qt.DropAction.CopyAction | Qt.DropAction.MoveAction
@@ -285,36 +408,36 @@ class PlaylistModel(QAbstractListModel):
     def dropMimeData(self, data, action, row, column, parent):
         if action == Qt.DropAction.IgnoreAction:
             return True
-            
+
+        target_row = row if row != -1 else self.rowCount()
+
+        if data.hasFormat("application/x-qabstractitemmodeldatalist") and data.hasUrls():
+            return self._move_dropped_rows(data.urls(), target_row)
+
         if data.hasUrls():
-            paths = [url.toLocalFile() for url in data.urls() if os.path.isfile(url.toLocalFile())]
-            if not paths:
-                # Opcjonalnie: wsparcie dla folderów (wymagałoby spacerowania po os.walk, ale zgodnie z wymaganiami na razie zostawiamy tylko pliki)
-                for url in data.urls():
-                    local_path = url.toLocalFile()
-                    if os.path.isdir(local_path):
-                        for root, _, files in os.walk(local_path):
-                            for file in files:
-                                if file.lower().endswith(('.mp4', '.mp3', '.mkv', '.jpg', '.png', '.wav', '.flac', '.aac', '.ogg', '.m4a')):
-                                    paths.append(os.path.join(root, file))
-                                    
-            if not paths:
-                return False
-                
-            begin_row = row if row != -1 else self.rowCount()
-            self.insertRows(begin_row, len(paths), parent)
-            
-            for i, path in enumerate(paths):
-                self._data[begin_row + i] = {
-                    'filename': os.path.basename(path),
-                    'path': path
-                }
-            
-            # Wymuś odświeżenie po dodaniu nowych elementów z zewnątrz
-            self.dataChanged.emit(self.index(begin_row, 0), self.index(begin_row + len(paths) - 1, 0))
-            return True
-            
-        return super().dropMimeData(data, action, row, column, parent)
+            paths = []
+            for url in data.urls():
+                paths.extend(find_media_paths(url.toLocalFile()))
+            return self.add_files(paths, target_row, parent)
+
+        return False
+
+    def _move_dropped_rows(self, urls, target_row):
+        for url in urls:
+            source_row = self.row_for_path(url.toLocalFile())
+            if source_row == -1:
+                continue
+
+            self.moveRows(QModelIndex(), source_row, 1, QModelIndex(), target_row)
+            if source_row < target_row:
+                target_row -= 1
+        return True
+
+    def row_for_path(self, path):
+        for idx, item in enumerate(self._data):
+            if item['path'] == path:
+                return idx
+        return -1
 
     def insertRows(self, row, count, parent=QModelIndex()):
         self.beginInsertRows(parent, row, row + count - 1)
@@ -369,13 +492,33 @@ class PlaylistModel(QAbstractListModel):
         return True
 
     def add_file(self, file_path):
-        row = self.rowCount()
-        self.insertRows(row, 1)
-        self._data[row] = {
-            'filename': os.path.basename(file_path),
-            'path': file_path
-        }
-        self.dataChanged.emit(self.index(row, 0), self.index(row, 0))
+        self.add_files([file_path])
+
+    def add_files(self, file_paths, row=None, parent=QModelIndex()):
+        file_paths = [path for path in file_paths if path]
+        if not file_paths:
+            return False
+
+        insert_row = self.rowCount() if row is None or row == -1 else row
+        self.insertRows(insert_row, len(file_paths), parent)
+
+        for offset, path in enumerate(file_paths):
+            self._data[insert_row + offset] = {
+                'filename': os.path.basename(path),
+                'path': path
+            }
+
+        self.dataChanged.emit(self.index(insert_row, 0), self.index(insert_row + len(file_paths) - 1, 0))
+        return True
+
+    def clear(self):
+        self.beginResetModel()
+        self._data = []
+        self.playing_row = -1
+        self.endResetModel()
+
+    def file_paths(self):
+        return [item['path'] for item in self._data]
 
     def set_playing_row(self, row):
         old_row = self.playing_row
@@ -387,25 +530,29 @@ class PlaylistModel(QAbstractListModel):
             self.dataChanged.emit(self.index(row, 0), self.index(row, 0))
 
 class PlaylistView(QListView):
-    """QListView z obsługą drag & drop plików z zewnętrznych aplikacji (np. Eksplorator)."""
+    """QListView z prawidłową obsługą wewnętrznego przenoszenia oraz drag & drop z zewnątrz."""
 
     def dragEnterEvent(self, event):
-        if event.mimeData().hasUrls():
+        if event.mimeData().hasUrls() or event.mimeData().hasFormat("application/x-qabstractitemmodeldatalist"):
             event.acceptProposedAction()
         else:
             super().dragEnterEvent(event)
 
     def dragMoveEvent(self, event):
-        if event.mimeData().hasUrls():
+        if event.mimeData().hasUrls() or event.mimeData().hasFormat("application/x-qabstractitemmodeldatalist"):
             event.acceptProposedAction()
         else:
             super().dragMoveEvent(event)
 
     def dropEvent(self, event):
-        if event.mimeData().hasUrls():
+        # Jeśli przeciągamy element wewnątrz tego samego widoku
+        if event.source() == self:
+            # Pozwalamy Qt na standardowe obsłużenie MoveAction przez model/proxy
+            super().dropEvent(event)
+        elif event.mimeData().hasUrls():
+            # Elementy z zewnątrz (np. z Eksploratora) wymuszają CopyAction
             event.setDropAction(Qt.DropAction.CopyAction)
             event.accept()
-            # Przekaż do modelu przez standardowy mechanizm Qt
             model = self.model()
             if model:
                 pos = event.position().toPoint()
@@ -460,18 +607,13 @@ class App(QMainWindow):
         self.media_player.video_set_mouse_input(False)
         self.media_player.video_set_key_input(False)
         
-        self.play_event = threading.Event()
-        def on_playing(event):
-            self.play_event.set()
-            
-        # Należy zachować referencję do callbacka, by nie został usunięty przez GC
-        self._vlc_callbacks = [on_playing]
-        self.media_player.event_manager().event_attach(vlc.EventType.MediaPlayerPlaying, on_playing)
-            
         self.init_ui()
         self.image_autoplay_timer = QTimer(self)
         self.image_autoplay_timer.setSingleShot(True)
         self.image_autoplay_timer.timeout.connect(self._on_image_autoplay_timeout)
+        self.fade_timer = QTimer(self)
+        self.fade_timer.timeout.connect(self._fade_out_step)
+        self._fade_state = None
         self.image_autoplay_start = None
         self.image_autoplay_duration = 0
         self.is_playing = False
@@ -503,8 +645,7 @@ class App(QMainWindow):
         self.add_btn = QPushButton("✚ Dodaj pliki")
         self.add_btn.setToolTip("Dodaj nowe pliki do listy")
         self.add_btn.clicked.connect(self.add_files)
-        self.remove_btn = QPushButton("✖ Usuń (Del)")
-        self.remove_btn.setToolTip("Usuń zaznaczone pliki (Delete)")
+        self.remove_btn = QPushButton()
         self.remove_btn.clicked.connect(self.remove_file)
         mgmt_left.addWidget(self.add_btn)
         mgmt_left.addWidget(self.remove_btn)
@@ -513,8 +654,7 @@ class App(QMainWindow):
         self.load_proj_btn = QPushButton("📂 Wczytaj Projekt")
         self.load_proj_btn.setToolTip("Wczytaj zapisaną listę plików")
         self.load_proj_btn.clicked.connect(self.load_project)
-        self.save_proj_btn = QPushButton("💾 Zapisz Projekt (F12)")
-        self.save_proj_btn.setToolTip("Zapisz aktualną listę (F12)")
+        self.save_proj_btn = QPushButton()
         self.save_proj_btn.clicked.connect(self.save_project)
         mgmt_right.addWidget(self.load_proj_btn)
         mgmt_right.addWidget(self.save_proj_btn)
@@ -522,8 +662,8 @@ class App(QMainWindow):
         top_bar.addLayout(mgmt_left)
         top_bar.addStretch()
         
-        self.logo_btn = QPushButton("📁 Wybierz Logo")
-        self.logo_btn.setToolTip("Wybierz grafikę do wyświetlania")
+        self.logo_btn = QPushButton("📁 Wybierz obrazek")
+        self.logo_btn.setToolTip("Wybierz obrazek lub grafikę do wyświetlania")
         self.logo_btn.clicked.connect(self.select_logo)
         
         self.window_btn = QPushButton("👁 Ukryj Okno")
@@ -543,7 +683,7 @@ class App(QMainWindow):
         # --- PASEK WYSZUKIWANIA ---
         search_layout = QHBoxLayout()
         self.search_input = QLineEdit()
-        self.search_input.setPlaceholderText("🔍 Wyszukaj utwór po tytule... (F3)")
+        self.search_input.setPlaceholderText("")
         self.search_input.setClearButtonEnabled(True)
         self.search_input.textChanged.connect(self.filter_playlist)
         search_layout.addWidget(self.search_input)
@@ -581,7 +721,7 @@ class App(QMainWindow):
         self.progress_slider.sliderPressed.connect(lambda: setattr(self, 'user_is_seeking', True))
         self.progress_slider.sliderReleased.connect(self.slider_released)
         
-        self.time_label = QLabel("00:00 / 00:00 (Pozostało: -00:00)")
+        self.time_label = QLabel(EMPTY_TIME_LABEL)
         self.time_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.time_label.setStyleSheet(f"font-size: 13pt; font-weight: bold; color: {COLOR_TEXT};")
         trans_layout.addWidget(self.progress_slider)
@@ -589,29 +729,24 @@ class App(QMainWindow):
         
         btns_grid = QHBoxLayout()
         btns_grid.setSpacing(5)
-        self.prev_btn = QPushButton("⏮ Poprzedni (F6/←)")
+        self.prev_btn = QPushButton()
         self.prev_btn.setObjectName("TransportBtn")
-        self.prev_btn.setToolTip("Poprzedni plik (F6 / Strzałka w lewo)")
         self.prev_btn.clicked.connect(self.play_previous_file)
         
-        self.play_btn = QPushButton("▶ PLAY (F4/Enter)")
+        self.play_btn = QPushButton()
         self.play_btn.setObjectName("PlayBtn")
-        self.play_btn.setToolTip("Odtwórz (F4)")
         self.play_btn.clicked.connect(self.play_media)
         
-        self.pause_btn = QPushButton("⏸ PAUSE (Spacja)")
+        self.pause_btn = QPushButton()
         self.pause_btn.setObjectName("TransportBtn")
-        self.pause_btn.setToolTip("Pauza / Wznów (Spacja)")
         self.pause_btn.clicked.connect(self.toggle_play_pause)
         
-        self.stop_btn = QPushButton("⏹ STOP (F5)")
+        self.stop_btn = QPushButton()
         self.stop_btn.setObjectName("StopBtn")
-        self.stop_btn.setToolTip("Zatrzymaj odtwarzanie (F5)")
         self.stop_btn.clicked.connect(self.stop_media)
         
-        self.next_btn = QPushButton("Następny ⏭ (F7/→)")
+        self.next_btn = QPushButton()
         self.next_btn.setObjectName("TransportBtn")
-        self.next_btn.setToolTip("Następny plik (F7 / Strzałka w prawo)")
         self.next_btn.clicked.connect(self.play_next_file)
         
         for btn in [self.prev_btn, self.play_btn, self.pause_btn, self.stop_btn, self.next_btn]:
@@ -624,15 +759,19 @@ class App(QMainWindow):
         bottom_panel = QHBoxLayout()
         view_group = QGroupBox("Widok i Efekty")
         view_layout = QVBoxLayout(view_group)
-        self.fade_btn = QPushButton("✨ Fade Out (F8)")
+        self.fade_btn = QPushButton()
         self.fade_btn.setObjectName("FadeBtn")
-        self.fade_btn.setToolTip("Płynne wyciszenie i ściemnienie (F8)")
         self.fade_btn.clicked.connect(self.fade_out)
-        self.fullscreen_btn = QPushButton("📺 Pełny Ekran (F11)")
-        self.fullscreen_btn.setToolTip("Przełącz pełny ekran (F11)")
+        self.fullscreen_btn = QPushButton()
         self.fullscreen_btn.clicked.connect(self.toggle_projection_fullscreen)
+        self.logo_overlay_btn = QPushButton()
+        self.logo_overlay_btn.setCheckable(True)
+        self.logo_overlay_btn.setObjectName("TransportBtn")
+        self.logo_overlay_btn.setToolTip("Pokaż obrazek zamiast wideo na wyjściu projekcji")
+        self.logo_overlay_btn.toggled.connect(self.toggle_logo_overlay)
         view_layout.addWidget(self.fade_btn)
         view_layout.addWidget(self.fullscreen_btn)
+        view_layout.addWidget(self.logo_overlay_btn)
         
         audio_group = QGroupBox("Sterowanie")
         audio_main_layout = QHBoxLayout(audio_group)
@@ -693,9 +832,15 @@ class App(QMainWindow):
         audio_main_layout.addLayout(fade_slider_layout)
         audio_main_layout.addSpacing(12)
 
-        image_speed_layout = QVBoxLayout()
+        audio_main_layout.addStretch()
+        
+        settings_group = QGroupBox("Ustawienia")
+        set_layout = QVBoxLayout(settings_group)
+        self.autoplay_checkbox = QCheckBox("Autoodtwarzanie")
+        self.autoplay_checkbox.stateChanged.connect(self._on_autoplay_changed)
+
+        image_speed_layout = QHBoxLayout()
         image_speed_title = QLabel("⏱ Prędkość grafiki")
-        image_speed_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         image_speed_title.setStyleSheet("font-size: 8pt; color: #aaaaaa;")
         self.image_switch_delay = QSpinBox()
         self.image_switch_delay.setRange(1, 60)
@@ -704,30 +849,20 @@ class App(QMainWindow):
         self.image_switch_delay.setToolTip("Czas wyświetlania plików graficznych w sekundach przy autoodtwarzaniu")
         self.image_switch_delay.setFixedWidth(80)
         image_speed_layout.addWidget(image_speed_title)
-        image_speed_layout.addWidget(self.image_switch_delay, alignment=Qt.AlignmentFlag.AlignHCenter)
+        image_speed_layout.addStretch()
+        image_speed_layout.addWidget(self.image_switch_delay)
 
-        audio_main_layout.addLayout(image_speed_layout)
-        audio_main_layout.addStretch()
-        
-        settings_group = QGroupBox("Ustawienia")
-        set_layout = QVBoxLayout(settings_group)
-        self.autoplay_checkbox = QCheckBox("Autoodtwarzanie")
-        self.autoplay_checkbox.stateChanged.connect(self._on_autoplay_changed)
         self.remote_checkbox = QCheckBox("Tryb Pilota (L/P)")
         self.remote_checkbox.setChecked(True)
         self.remote_checkbox.stateChanged.connect(self.update_shortcuts)
-        self.logo_audio_checkbox = QCheckBox("Logo dla Audio (F10)")
+        self.logo_audio_checkbox = QCheckBox()
         self.logo_audio_checkbox.setChecked(True)
         self.logo_audio_checkbox.stateChanged.connect(self.update_logo_visibility)
         
-        self.logo_overlay_checkbox = QCheckBox("Logo Overlay (F9)")
-        self.logo_overlay_checkbox.setToolTip("Nałóż logo na obraz (wymusza wyświetlanie logo)")
-        self.logo_overlay_checkbox.stateChanged.connect(self.toggle_logo_overlay)
-        
         set_layout.addWidget(self.autoplay_checkbox)
+        set_layout.addLayout(image_speed_layout)
         set_layout.addWidget(self.remote_checkbox)
         set_layout.addWidget(self.logo_audio_checkbox)
-        set_layout.addWidget(self.logo_overlay_checkbox)
         set_layout.addStretch()
         
         bottom_panel.addWidget(view_group, stretch=1)
@@ -735,29 +870,67 @@ class App(QMainWindow):
         bottom_panel.addWidget(settings_group, stretch=1)
         layout.addLayout(bottom_panel)
 
+        self.setup_button_feedback(
+            self.add_btn, self.remove_btn, self.load_proj_btn, self.save_proj_btn,
+            self.logo_btn, self.window_btn, self.prev_btn, self.play_btn,
+            self.pause_btn, self.stop_btn, self.next_btn, self.fade_btn,
+            self.fullscreen_btn, self.logo_overlay_btn,
+        )
+        self.update_shortcut_descriptions()
         self.init_shortcuts()
         self.status_timer = QTimer(self)
         self.status_timer.timeout.connect(self.check_player_status)
         self.status_timer.start(500)
 
     def init_shortcuts(self):
-        QShortcut(QKeySequence(Qt.Key.Key_Space), self).activated.connect(self.toggle_play_pause)
-        QShortcut(QKeySequence(Qt.Key.Key_Delete), self.playlist).activated.connect(self.remove_file)
-        for key in [Qt.Key.Key_Return, Qt.Key.Key_Enter]:
-            QShortcut(QKeySequence(key), self.playlist).activated.connect(self.play_media)
-        self.sc_nav_prev = QShortcut(QKeySequence(Qt.Key.Key_Up), self)
-        self.sc_nav_prev.activated.connect(self.play_previous_file)
-        self.sc_nav_next = QShortcut(QKeySequence(Qt.Key.Key_Down), self)
-        self.sc_nav_next.activated.connect(self.play_next_file)
-        f_keys = {Qt.Key.Key_F3: self.search_input.setFocus,
-                  Qt.Key.Key_F2: self.focus_first_track,
-                  Qt.Key.Key_F4: self.play_media, Qt.Key.Key_F5: self.stop_media,
-                  Qt.Key.Key_F6: self.play_previous_file, Qt.Key.Key_F7: self.play_next_file,
-                  Qt.Key.Key_F8: self.fade_out, Qt.Key.Key_F11: self.toggle_projection_fullscreen,
-                  Qt.Key.Key_F10: lambda: self.logo_audio_checkbox.setChecked(not self.logo_audio_checkbox.isChecked()),
-                  Qt.Key.Key_F9: lambda: self.logo_overlay_checkbox.setChecked(not self.logo_overlay_checkbox.isChecked()), Qt.Key.Key_F12: self.save_project}
-        for k, f in f_keys.items(): QShortcut(QKeySequence(k), self).activated.connect(f)
+        for key in KEYBOARD_SHORTCUTS["pause"]["keys"]:
+            QShortcut(QKeySequence(key), self).activated.connect(lambda: self.activate_button(self.pause_btn, self.toggle_play_pause))
+        for key in KEYBOARD_SHORTCUTS["remove"]["keys"]:
+            QShortcut(QKeySequence(key), self.playlist).activated.connect(lambda: self.activate_button(self.remove_btn, self.remove_file))
+        for key in KEYBOARD_SHORTCUTS["play"]["playlist_keys"]:
+            QShortcut(QKeySequence(key), self.playlist).activated.connect(lambda: self.activate_button(self.play_btn, self.play_media))
+        self.sc_nav_prev = QShortcut(QKeySequence(navigation_shortcut("previous", False)), self)
+        self.sc_nav_prev.activated.connect(lambda: self.activate_button(self.prev_btn, self.play_previous_file))
+        self.sc_nav_next = QShortcut(QKeySequence(navigation_shortcut("next", False)), self)
+        self.sc_nav_next.activated.connect(lambda: self.activate_button(self.next_btn, self.play_next_file))
+        f_keys = {
+            "search": self.search_input.setFocus,
+            "focus_playlist": self.focus_first_track,
+            "play": lambda: self.activate_button(self.play_btn, self.play_media),
+            "stop": lambda: self.activate_button(self.stop_btn, self.stop_media),
+            "previous": lambda: self.activate_button(self.prev_btn, self.play_previous_file),
+            "next": lambda: self.activate_button(self.next_btn, self.play_next_file),
+            "fade_out": lambda: self.activate_button(self.fade_btn, self.fade_out),
+            "fullscreen": lambda: self.activate_button(self.fullscreen_btn, self.toggle_projection_fullscreen),
+            "logo_audio": lambda: self.logo_audio_checkbox.setChecked(not self.logo_audio_checkbox.isChecked()),
+            "logo_overlay": lambda: self.activate_button(self.logo_overlay_btn, lambda: self.logo_overlay_btn.setChecked(not self.logo_overlay_btn.isChecked())),
+            "save_project": lambda: self.activate_button(self.save_proj_btn, self.save_project),
+        }
+        for name, callback in f_keys.items():
+            for key in KEYBOARD_SHORTCUTS[name]["keys"]:
+                QShortcut(QKeySequence(key), self).activated.connect(callback)
         self.update_shortcuts()
+
+    def setup_button_feedback(self, *buttons):
+        for button in buttons:
+            button.setProperty("flash", False)
+            button.clicked.connect(lambda checked=False, btn=button: self.flash_button(btn))
+
+    def activate_button(self, button, callback):
+        self.flash_button(button)
+        callback()
+
+    def flash_button(self, button):
+        self.set_button_flash(button, True)
+        QTimer.singleShot(180, lambda btn=button: self.set_button_flash(btn, False))
+
+    def set_button_flash(self, button, enabled):
+        if not button:
+            return
+        button.setProperty("flash", enabled)
+        button.style().unpolish(button)
+        button.style().polish(button)
+        button.update()
 
     def focus_first_track(self):
         if self.proxy_model.rowCount() > 0:
@@ -766,13 +939,40 @@ class App(QMainWindow):
             self.playlist.scrollTo(idx, QListView.ScrollHint.PositionAtTop)
             self.playlist.setFocus()
 
+    def update_shortcut_descriptions(self):
+        remote_enabled = self.remote_checkbox.isChecked()
+        prev_shortcut = navigation_shortcut("previous", remote_enabled)
+        next_shortcut = navigation_shortcut("next", remote_enabled)
+
+        self.remove_btn.setText(f"✖ Usuń ({shortcut_label('remove')})")
+        self.remove_btn.setToolTip(f"Usuń zaznaczone pliki ({shortcut_label('remove', tooltip=True)})")
+        self.save_proj_btn.setText(f"💾 Zapisz Projekt ({shortcut_label('save_project')})")
+        self.save_proj_btn.setToolTip(f"Zapisz aktualną listę ({shortcut_label('save_project')})")
+        self.search_input.setPlaceholderText(f"🔍 Wyszukaj utwór po tytule... ({shortcut_label('search')})")
+
+        self.prev_btn.setText(f"⏮ Poprzedni ({shortcut_label('previous', extra_keys=[prev_shortcut])})")
+        self.prev_btn.setToolTip(f"Poprzedni plik ({shortcut_label('previous', extra_keys=[prev_shortcut], separator=' / ', tooltip=True)})")
+        self.play_btn.setText(f"▶ PLAY ({shortcut_label('play', groups=('keys', 'playlist_keys'))})")
+        self.play_btn.setToolTip(f"Odtwórz ({shortcut_label('play')})")
+        self.pause_btn.setText(f"⏸ PAUSE ({shortcut_label('pause')})")
+        self.pause_btn.setToolTip(f"Pauza / Wznów ({shortcut_label('pause')})")
+        self.stop_btn.setText(f"⏹ STOP ({shortcut_label('stop')})")
+        self.stop_btn.setToolTip(f"Zatrzymaj odtwarzanie ({shortcut_label('stop')})")
+        self.next_btn.setText(f"Następny ⏭ ({shortcut_label('next', extra_keys=[next_shortcut])})")
+        self.next_btn.setToolTip(f"Następny plik ({shortcut_label('next', extra_keys=[next_shortcut], separator=' / ', tooltip=True)})")
+
+        self.fade_btn.setText(f"✨ Fade Out ({shortcut_label('fade_out')})")
+        self.fade_btn.setToolTip(f"Płynne wyciszenie i ściemnienie ({shortcut_label('fade_out')})")
+        self.fullscreen_btn.setText(f"📺 Pełny Ekran ({shortcut_label('fullscreen')})")
+        self.fullscreen_btn.setToolTip(f"Przełącz pełny ekran ({shortcut_label('fullscreen')})")
+        self.logo_audio_checkbox.setText(f"Obrazek dla Audio ({shortcut_label('logo_audio')})")
+        self.logo_overlay_btn.setText(f"Obrazek na wyjściu ({shortcut_label('logo_overlay')})")
+
     def update_shortcuts(self):
-        if self.remote_checkbox.isChecked():
-            self.sc_nav_prev.setKey(QKeySequence(Qt.Key.Key_Left))
-            self.sc_nav_next.setKey(QKeySequence(Qt.Key.Key_Right))
-        else:
-            self.sc_nav_prev.setKey(QKeySequence(Qt.Key.Key_Up))
-            self.sc_nav_next.setKey(QKeySequence(Qt.Key.Key_Down))
+        remote_enabled = self.remote_checkbox.isChecked()
+        self.sc_nav_prev.setKey(QKeySequence(navigation_shortcut("previous", remote_enabled)))
+        self.sc_nav_next.setKey(QKeySequence(navigation_shortcut("next", remote_enabled)))
+        self.update_shortcut_descriptions()
 
     def set_volume(self, value):
         self.media_player.audio_set_volume(value)
@@ -780,11 +980,18 @@ class App(QMainWindow):
 
     def set_brightness(self, value):
         bri = value / 100.0
-        self.media_player.video_set_adjust_float(vlc.VideoAdjustOption.Brightness, bri)
-        self.media_player.video_set_adjust_float(vlc.VideoAdjustOption.Contrast, bri)
-        self.projection_window.logo_viewer.opacity = bri
-        self.projection_window.logo_viewer.update()
+        self._set_projection_brightness(bri)
         self.bri_label.setText(f"{value}%")
+
+    def _set_projection_brightness(self, brightness, queued=False):
+        self.media_player.video_set_adjust_float(vlc.VideoAdjustOption.Brightness, brightness)
+        self.media_player.video_set_adjust_float(vlc.VideoAdjustOption.Contrast, brightness)
+        self.projection_window.logo_viewer.opacity = brightness
+
+        if queued:
+            QTimer.singleShot(0, self.projection_window.logo_viewer.update)
+        else:
+            self.projection_window.logo_viewer.update()
 
     def _on_fade_speed_changed(self, value):
         # value: 2–20, gdzie 10 = 1.0s, 20 = 2.0s
@@ -830,13 +1037,13 @@ class App(QMainWindow):
                                 self.media_player.audio_set_volume(self.volume_slider.value())
             elif not self.user_is_seeking:
                 self.progress_slider.setValue(0)
-                self.time_label.setText("00:00 / 00:00 (Pozostało: -00:00)")
+                self.time_label.setText(EMPTY_TIME_LABEL)
         except Exception as e:
             logging.error("Błąd w check_player_status:", exc_info=True)
 
     def add_files(self):
-        files, _ = QFileDialog.getOpenFileNames(self, "Dodaj multimedia", "", "Media (*.mp4 *.mp3 *.mkv *.jpg *.png);;Wszystkie (*.*)")
-        for f in files: self.playlist_model.add_file(f)
+        files, _ = QFileDialog.getOpenFileNames(self, "Dodaj multimedia", "", MEDIA_FILE_FILTER)
+        self.playlist_model.add_files(files)
 
     def remove_file(self):
         indexes = self.playlist.selectionModel().selectedIndexes()
@@ -859,16 +1066,28 @@ class App(QMainWindow):
             
         self._stop_image_autoplay_timer()
         self.playlist_model.set_playing_row(row)
-        if getattr(self, 'logo_overlay_checkbox', None) and self.logo_overlay_checkbox.isChecked(): self.projection_window.set_mode_audio()
-        else:
-            is_audio = path.lower().endswith(('.mp3', '.wav', '.flac', '.aac', '.ogg', '.m4a'))
-            self.projection_window.set_mode_audio() if is_audio else self.projection_window.set_mode_video()
-        threading.Thread(target=self._transition_thread, args=(path,), daemon=True).start()
-        if self._is_image_file(path):
+        self._set_projection_mode_for_path(path)
+        self._start_media_transition(path)
+        if is_image_file(path):
             self._start_image_autoplay_timer()
 
     def _is_image_file(self, path):
-        return bool(path and path.lower().endswith(('.jpg', '.jpeg', '.png', '.bmp', '.gif')))
+        return is_image_file(path)
+
+    def _set_projection_mode_for_path(self, path):
+        if getattr(self, 'logo_overlay_btn', None) and self.logo_overlay_btn.isChecked():
+            self.projection_window.set_mode_audio()
+        elif is_audio_file(path):
+            self.projection_window.set_mode_audio()
+        else:
+            self.projection_window.set_mode_video()
+
+    def _current_media_path(self):
+        row = self.playlist_model.playing_row
+        if row == -1:
+            return None
+        source_idx = self.playlist_model.index(row, 0)
+        return self.playlist_model.data(source_idx, Qt.ItemDataRole.UserRole)
 
     def _start_image_autoplay_timer(self):
         self._stop_image_autoplay_timer()
@@ -894,114 +1113,121 @@ class App(QMainWindow):
             self._stop_image_autoplay_timer()
 
     def _is_current_playing_image(self):
-        row = self.playlist_model.playing_row
-        if row == -1:
-            return False
-        source_idx = self.playlist_model.index(row, 0)
-        path = self.playlist_model.data(source_idx, Qt.ItemDataRole.UserRole)
-        return self._is_image_file(path)
+        return is_image_file(self._current_media_path())
 
-    def _transition_thread(self, path):
+    def _start_media_transition(self, path):
         self.is_transitioning = True
-        target_vol = self.volume_slider.value()
         try:
             self.media_player.stop()
-                
+
             media = self.vlc_instance.media_new(path)
             self.media_player.set_media(media)
-            self.play_event.clear()
             self.media_player.play()
             self.is_playing = True
-            
-            # Czekamy na zdarzenie z EventManager (timeout 1.5s na wypadek problemu z ładowaniem)
-            self.play_event.wait(timeout=1.5)
-                
-            time.sleep(0.1) 
-            self.media_player.video_set_adjust_int(vlc.VideoAdjustOption.Enable, 1)
-            target_bri = self.brightness_slider.value() / 100.0
-            self.media_player.video_set_adjust_float(vlc.VideoAdjustOption.Brightness, target_bri)
-            self.media_player.video_set_adjust_float(vlc.VideoAdjustOption.Contrast, target_bri)
-            self.projection_window.logo_viewer.opacity = target_bri
-            QTimer.singleShot(0, self.projection_window.logo_viewer.update)
-            
-            self.media_player.audio_set_mute(False)
+            QTimer.singleShot(100, self._finish_media_transition)
+        except Exception:
+            logging.error("Błąd podczas startu odtwarzania:", exc_info=True)
+            self.is_transitioning = False
 
-            
-        except Exception as e:
-            logging.error("Błąd podczas odtwarzania (transition_thread):", exc_info=True)
+    def _finish_media_transition(self):
+        try:
+            self.media_player.video_set_adjust_int(vlc.VideoAdjustOption.Enable, 1)
+            self._set_projection_brightness(self.brightness_slider.value() / 100.0)
+            self.media_player.audio_set_mute(False)
+        except Exception:
+            logging.error("Błąd podczas finalizacji odtwarzania:", exc_info=True)
         finally:
             self.is_transitioning = False
 
     def fade_out(self):
         if self.is_playing and not self.is_transitioning:
-            threading.Thread(target=self._fade_out_thread, daemon=True).start()
+            self._start_fade_out()
 
     def _is_current_playing_audio(self):
-        row = self.playlist_model.playing_row
-        if row == -1:
-            return False
-        source_idx = self.playlist_model.index(row, 0)
-        path = self.playlist_model.data(source_idx, Qt.ItemDataRole.UserRole)
-        return bool(path and path.lower().endswith(('.mp3', '.wav', '.flac', '.aac', '.ogg', '.m4a')))
+        return is_audio_file(self._current_media_path())
 
-    def _fade_out_thread(self):
+    def _start_fade_out(self):
         self.is_transitioning = True
         try:
             fade_secs = self._fade_duration()
             steps = max(5, int(fade_secs * 10))
-            step_sleep = fade_secs / steps
             has_audio = (self.media_player.audio_get_track_count() > 0)
             audio_only = self._is_current_playing_audio()
-            start_vol = self.media_player.audio_get_volume() if has_audio else 0
-            start_bri = self.brightness_slider.value() / 100.0
-            for i in range(steps):
-                vol = start_vol * (1 - (i + 1) / steps)
-                bri = start_bri * (1 - (i + 1) / steps)
-                if has_audio:
-                    self.media_player.audio_set_volume(int(max(0, vol)))
-                if not audio_only:
-                    self.media_player.video_set_adjust_float(vlc.VideoAdjustOption.Brightness, max(0.0, bri))
-                    self.media_player.video_set_adjust_float(vlc.VideoAdjustOption.Contrast, max(0.0, bri))
-                    self.projection_window.logo_viewer.opacity = max(0.0, bri)
-                    QTimer.singleShot(0, self.projection_window.logo_viewer.update)
-                time.sleep(step_sleep)
-                
-            self.stop_media(keep_logo=audio_only)
-            if not audio_only:
-                self.media_player.video_set_adjust_float(vlc.VideoAdjustOption.Brightness, start_bri)
-                self.media_player.video_set_adjust_float(vlc.VideoAdjustOption.Contrast, start_bri)
-                self.projection_window.logo_viewer.opacity = start_bri
-                QTimer.singleShot(0, self.projection_window.logo_viewer.update)
-        except Exception as e:
-            logging.error("Błąd podczas ściemniania (fade_out_thread):", exc_info=True)
-        finally:
+            self._fade_state = {
+                "step": 0,
+                "steps": steps,
+                "interval_ms": max(1, int((fade_secs * 1000) / steps)),
+                "has_audio": has_audio,
+                "audio_only": audio_only,
+                "start_vol": self.media_player.audio_get_volume() if has_audio else 0,
+                "start_bri": self.brightness_slider.value() / 100.0,
+            }
+            self.fade_timer.start(self._fade_state["interval_ms"])
+        except Exception:
+            logging.error("Błąd podczas startu fade out:", exc_info=True)
             self.is_transitioning = False
+
+    def _fade_out_step(self):
+        state = self._fade_state
+        if not state:
+            self.fade_timer.stop()
+            return
+
+        state["step"] += 1
+        progress = min(1.0, state["step"] / state["steps"])
+
+        if state["has_audio"]:
+            vol = state["start_vol"] * (1 - progress)
+            self.media_player.audio_set_volume(int(max(0, vol)))
+
+        if not state["audio_only"]:
+            bri = state["start_bri"] * (1 - progress)
+            self._set_projection_brightness(max(0.0, bri))
+
+        if progress >= 1.0:
+            self.fade_timer.stop()
+            self.stop_media(keep_logo=state["audio_only"], after_stop=self._finish_fade_out)
+
+    def _finish_fade_out(self):
+        state = self._fade_state
+        if state and not state["audio_only"]:
+            self._set_projection_brightness(state["start_bri"])
+        self._fade_state = None
+        self.is_transitioning = False
 
     def toggle_play_pause(self):
         if self.is_playing: self.media_player.pause() if self.media_player.get_state() == vlc.State.Playing else self.media_player.play()
         else: self.play_media()
 
-    def stop_media(self, keep_logo=False):
+    def stop_media(self, keep_logo=False, after_stop=None):
         self._stop_image_autoplay_timer()
+        if self.fade_timer.isActive() and after_stop is None:
+            self.fade_timer.stop()
+            self._fade_state = None
+            self.is_transitioning = False
+
         if self.media_player.get_state() in (vlc.State.Playing, vlc.State.Paused):
             # Odpinamy wideo przed audio (na czarny ekran) przed stopem
             if not keep_logo:
-                self.media_player.video_set_adjust_float(vlc.VideoAdjustOption.Brightness, 0.0)
-                self.media_player.video_set_adjust_float(vlc.VideoAdjustOption.Contrast, 0.0)
-                self.projection_window.logo_viewer.opacity = 0.0
-                QTimer.singleShot(0, self.projection_window.logo_viewer.update)
-            
+                self._set_projection_brightness(0.0)
+
             # Zerujemy odtwarzacz matematycznie, BEZ wyciszania gniazda sprzętowego
             has_audio = (self.media_player.audio_get_track_count() > 0)
             if has_audio:
                 self.media_player.audio_set_volume(0)
-                
-            self.media_player.pause() # Ściek buforów wejściowych
-            time.sleep(0.05) 
-            
+
+            self.media_player.pause()
+            QTimer.singleShot(50, lambda: self._finish_stop_media(after_stop))
+            return
+
+        self._finish_stop_media(after_stop)
+
+    def _finish_stop_media(self, after_stop=None):
         self.media_player.stop()
         self.is_playing = False
         self.playlist_model.set_playing_row(-1)
+        if after_stop:
+            after_stop()
 
     def play_next_file(self):
         idx = self.playlist.currentIndex()
@@ -1018,7 +1244,7 @@ class App(QMainWindow):
             self.play_media()
 
     def select_logo(self):
-        path, _ = QFileDialog.getOpenFileName(self, "Logo", "", "Images (*.png *.jpg *.jpeg *.bmp)")
+        path, _ = QFileDialog.getOpenFileName(self, "Wybierz obrazek", "", IMAGE_FILE_FILTER)
         if path:
             self._logo_path = path
             self.projection_window.logo_viewer.logo_pixmap = QPixmap(path)
@@ -1044,13 +1270,8 @@ class App(QMainWindow):
     def toggle_logo_overlay(self, checked):
         if checked: self.projection_window.set_mode_audio()
         else:
-            row = self.playlist_model.playing_row
-            if row != -1:
-                source_idx = self.playlist_model.index(row, 0)
-                path = self.playlist_model.data(source_idx, Qt.ItemDataRole.UserRole)
-                is_audio = path.lower().endswith(('.mp3', '.wav', '.flac', '.aac', '.ogg', '.m4a'))
-                self.projection_window.set_mode_audio() if is_audio else self.projection_window.set_mode_video()
-            else: self.projection_window.set_mode_video()
+            path = self._current_media_path()
+            self._set_projection_mode_for_path(path) if path else self.projection_window.set_mode_video()
 
     def update_logo_visibility(self):
         self.projection_window.logo_viewer.show_logo = self.logo_audio_checkbox.isChecked()
@@ -1062,11 +1283,11 @@ class App(QMainWindow):
         self.proxy_model.setFilterRegularExpression(text)
 
     def save_project(self):
-        path, _ = QFileDialog.getSaveFileName(self, "Zapisz", "", "JSON (*.json)")
+        path, _ = QFileDialog.getSaveFileName(self, "Zapisz", "", PROJECT_FILE_FILTER)
         if path:
             try:
                 project = {
-                    "files": [self.playlist_model._data[i]['path'] for i in range(self.playlist_model.rowCount())],
+                    "files": self.playlist_model.file_paths(),
                     "logo": getattr(self, '_logo_path', None)
                 }
                 with open(path, 'w', encoding='utf-8') as f: json.dump(project, f, ensure_ascii=False, indent=4)
@@ -1076,7 +1297,7 @@ class App(QMainWindow):
                 QMessageBox.critical(self, "Błąd zapisu", f"Nie udało się zapisać projektu:\n{e}")
 
     def load_project(self):
-        path, _ = QFileDialog.getOpenFileName(self, "Wczytaj", "", "JSON (*.json)")
+        path, _ = QFileDialog.getOpenFileName(self, "Wczytaj", "", PROJECT_FILE_FILTER)
         if path:
             self._load_project_file(path)
             
@@ -1092,17 +1313,17 @@ class App(QMainWindow):
                 files = data.get('files', [])
                 logo_path = data.get('logo', None)
             
-            self.playlist_model.beginResetModel()
-            self.playlist_model._data = []
-            self.playlist_model.playing_row = -1
-            self.playlist_model.endResetModel()
+            self.playlist_model.clear()
+            existing_files = []
             for p in files:
                 if os.path.exists(p):
-                    self.playlist_model.add_file(p)
+                    existing_files.append(p)
                 else:
                     print(f"Pominięto brakujący plik podczas wczytywania: {p}")
             
-            # Przywróć logo jeśli zapisane i plik nadal istnieje
+            # Przywróć obrazek jeśli zapisany plik nadal istnieje
+            self.playlist_model.add_files(existing_files)
+            
             if logo_path and os.path.exists(logo_path):
                 self._logo_path = logo_path
                 self.projection_window.logo_viewer.logo_pixmap = QPixmap(logo_path)

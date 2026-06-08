@@ -316,10 +316,12 @@ class ProjectionWindow(QWidget):
         self.setStyleSheet("background-color: black;")
         self.video_widget = QWidget()
         self.logo_container = QWidget()
-        logo_layout = QVBoxLayout(self.logo_container)
-        logo_layout.setContentsMargins(0, 0, 0, 0)
+        self.logo_stacked_layout = QStackedLayout(self.logo_container)
+        self.logo_stacked_layout.setContentsMargins(0, 0, 0, 0)
         self.logo_viewer = LogoViewer()
-        logo_layout.addWidget(self.logo_viewer)
+        self.logo_video_widget = QWidget()
+        self.logo_stacked_layout.addWidget(self.logo_viewer)
+        self.logo_stacked_layout.addWidget(self.logo_video_widget)
         self.stacked_layout = QStackedLayout(self)
         self.stacked_layout.addWidget(self.video_widget)
         self.stacked_layout.addWidget(self.logo_container)
@@ -595,6 +597,9 @@ class App(QMainWindow):
             self.media_player = self.vlc_instance.media_player_new()
             self.media_player.audio_set_volume(0) # Konfiguracja zabezpieczająca na start
             self.media_player.video_set_adjust_int(vlc.VideoAdjustOption.Enable, 1)
+            self.logo_player = self.vlc_instance.media_player_new()
+            self.logo_player.audio_set_volume(0)
+            self.logo_player.video_set_adjust_int(vlc.VideoAdjustOption.Enable, 1)
         except Exception as e:
             QMessageBox.critical(self, "VLC Error", f"Błąd VLC: {e}")
             sys.exit(1)
@@ -603,9 +608,13 @@ class App(QMainWindow):
         self.projection_window.move_to_second_screen()
         self.projection_window.show()
         
-        if sys.platform.startswith("win"): self.media_player.set_hwnd(int(self.projection_window.video_widget.winId()))
+        if sys.platform.startswith("win"):
+            self.media_player.set_hwnd(int(self.projection_window.video_widget.winId()))
+            self.logo_player.set_hwnd(int(self.projection_window.logo_video_widget.winId()))
         self.media_player.video_set_mouse_input(False)
         self.media_player.video_set_key_input(False)
+        self.logo_player.video_set_mouse_input(False)
+        self.logo_player.video_set_key_input(False)
         
         self.init_ui()
         self.image_autoplay_timer = QTimer(self)
@@ -662,7 +671,7 @@ class App(QMainWindow):
         top_bar.addLayout(mgmt_left)
         top_bar.addStretch()
         
-        self.logo_btn = QPushButton("📁 Wybierz obrazek")
+        self.logo_btn = QPushButton("📁 Wybierz plik nakładki")
         self.logo_btn.setToolTip("Wybierz obrazek lub grafikę do wyświetlania")
         self.logo_btn.clicked.connect(self.select_logo)
         
@@ -966,7 +975,7 @@ class App(QMainWindow):
         self.fullscreen_btn.setText(f"📺 Pełny Ekran ({shortcut_label('fullscreen')})")
         self.fullscreen_btn.setToolTip(f"Przełącz pełny ekran ({shortcut_label('fullscreen')})")
         self.logo_audio_checkbox.setText(f"Obrazek dla Audio ({shortcut_label('logo_audio')})")
-        self.logo_overlay_btn.setText(f"Obrazek na wyjściu ({shortcut_label('logo_overlay')})")
+        self.logo_overlay_btn.setText(f"Nakładka na obraz ({shortcut_label('logo_overlay')})")
 
     def update_shortcuts(self):
         remote_enabled = self.remote_checkbox.isChecked()
@@ -986,6 +995,9 @@ class App(QMainWindow):
     def _set_projection_brightness(self, brightness, queued=False):
         self.media_player.video_set_adjust_float(vlc.VideoAdjustOption.Brightness, brightness)
         self.media_player.video_set_adjust_float(vlc.VideoAdjustOption.Contrast, brightness)
+        if hasattr(self, 'logo_player'):
+            self.logo_player.video_set_adjust_float(vlc.VideoAdjustOption.Brightness, brightness)
+            self.logo_player.video_set_adjust_float(vlc.VideoAdjustOption.Contrast, brightness)
         self.projection_window.logo_viewer.opacity = brightness
 
         if queued:
@@ -1010,6 +1022,12 @@ class App(QMainWindow):
 
     def check_player_status(self):
         try:
+            logo_path = getattr(self, '_logo_path', None)
+            if logo_path and os.path.exists(logo_path) and not is_image_file(logo_path):
+                if self.logo_player.get_state() in (vlc.State.Ended, vlc.State.Stopped):
+                    self.logo_player.play()
+                    self.logo_player.audio_set_volume(0)
+                    self.logo_player.audio_set_mute(True)
             if self.is_playing and not self.is_transitioning:
                 state = self.media_player.get_state()
                 if state in (vlc.State.Ended, vlc.State.Stopped):
@@ -1244,11 +1262,38 @@ class App(QMainWindow):
             self.play_media()
 
     def select_logo(self):
-        path, _ = QFileDialog.getOpenFileName(self, "Wybierz obrazek", "", IMAGE_FILE_FILTER)
+        filter_str = "Wszystkie obsługiwane (*.png *.jpg *.jpeg *.bmp *.gif *.mp4 *.mkv);;Obrazy (*.png *.jpg *.jpeg *.bmp *.gif);;Wideo (*.mp4 *.mkv);;Wszystkie (*.*)"
+        path, _ = QFileDialog.getOpenFileName(self, "Wybierz nakładkę", "", filter_str)
         if path:
             self._logo_path = path
-            self.projection_window.logo_viewer.logo_pixmap = QPixmap(path)
+            self.update_logo_media()
+
+    def update_logo_media(self):
+        path = getattr(self, '_logo_path', None)
+        if not path or not os.path.exists(path):
+            self.logo_player.stop()
+            self.projection_window.logo_viewer.logo_pixmap = None
             self.projection_window.logo_viewer.update()
+            return
+
+        if is_image_file(path):
+            self.logo_player.stop()
+            self.projection_window.logo_viewer.logo_pixmap = QPixmap(path)
+            self.projection_window.logo_stacked_layout.setCurrentWidget(self.projection_window.logo_viewer)
+            self.projection_window.logo_viewer.update()
+        else:
+            self.projection_window.logo_viewer.logo_pixmap = None
+            self.projection_window.logo_stacked_layout.setCurrentWidget(self.projection_window.logo_video_widget)
+            media = self.vlc_instance.media_new(path)
+            media.add_option('input-repeat=65535')
+            self.logo_player.set_media(media)
+            self.logo_player.play()
+            self.logo_player.audio_set_volume(0)
+            self.logo_player.audio_set_mute(True)
+            self.logo_player.video_set_adjust_int(vlc.VideoAdjustOption.Enable, 1)
+            bri = self.brightness_slider.value() / 100.0
+            self.logo_player.video_set_adjust_float(vlc.VideoAdjustOption.Brightness, bri)
+            self.logo_player.video_set_adjust_float(vlc.VideoAdjustOption.Contrast, bri)
 
     def toggle_projection_fullscreen(self):
         if self.projection_window.isFullScreen(): self.projection_window.showNormal()
@@ -1256,6 +1301,7 @@ class App(QMainWindow):
         
         if sys.platform.startswith("win"):
             self.media_player.set_hwnd(int(self.projection_window.video_widget.winId()))
+            self.logo_player.set_hwnd(int(self.projection_window.logo_video_widget.winId()))
             
         self.activateWindow()
 
@@ -1266,6 +1312,7 @@ class App(QMainWindow):
             self.projection_window.show()
             if sys.platform.startswith("win"):
                 self.media_player.set_hwnd(int(self.projection_window.video_widget.winId()))
+                self.logo_player.set_hwnd(int(self.projection_window.logo_video_widget.winId()))
 
     def toggle_logo_overlay(self, checked):
         if checked: self.projection_window.set_mode_audio()
@@ -1326,8 +1373,7 @@ class App(QMainWindow):
             
             if logo_path and os.path.exists(logo_path):
                 self._logo_path = logo_path
-                self.projection_window.logo_viewer.logo_pixmap = QPixmap(logo_path)
-                self.projection_window.logo_viewer.update()
+                self.update_logo_media()
             
             self.settings.setValue("last_project", path)
             self.update_window_title(path)

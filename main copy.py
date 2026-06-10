@@ -463,17 +463,6 @@ class PlaylistModel(QAbstractListModel):
         self.endRemoveRows()
         return True
 
-    def _update_playing_row_on_move(self, sourceRow, count, destinationChild, insert_row):
-        if sourceRow <= self.playing_row < sourceRow + count:
-            offset = self.playing_row - sourceRow
-            self.playing_row = insert_row + offset
-        else:
-            # Jeśli element przesuwa się przez playing_row
-            if sourceRow < self.playing_row and destinationChild > self.playing_row:
-                self.playing_row -= count
-            elif sourceRow > self.playing_row and destinationChild <= self.playing_row:
-                self.playing_row += count
-
     def moveRows(self, sourceParent, sourceRow, count, destinationParent, destinationChild):
         # Sprawdzamy czy nie przenosimy w to samo miejsce
         if sourceRow == destinationChild or sourceRow == destinationChild - 1:
@@ -491,7 +480,16 @@ class PlaylistModel(QAbstractListModel):
         for i, item in enumerate(items_to_move):
             self._data.insert(insert_row + i, item)
             
-        self._update_playing_row_on_move(sourceRow, count, destinationChild, insert_row)
+        # Aktualizacja indeksu odtwarzania
+        if self.playing_row >= sourceRow and self.playing_row < sourceRow + count:
+            offset = self.playing_row - sourceRow
+            self.playing_row = insert_row + offset
+        else:
+            # Jeśli element przesuwa się przez playing_row
+            if sourceRow < self.playing_row and destinationChild > self.playing_row:
+                self.playing_row -= count
+            elif sourceRow > self.playing_row and destinationChild <= self.playing_row:
+                self.playing_row += count
                 
         self.endMoveRows()
         return True
@@ -604,7 +602,7 @@ class App(QMainWindow):
         except Exception as e:
             QMessageBox.critical(self, "VLC Error", f"Błąd VLC: {e}")
             sys.exit(1)
-
+            
         self.projection_window = ProjectionWindow()
         self.projection_window.move_to_second_screen()
         self.projection_window.show()
@@ -864,10 +862,10 @@ class App(QMainWindow):
 
         self.remote_checkbox = QCheckBox("Tryb Pilota (L/P)")
         self.remote_checkbox.setChecked(True)
-        self.remote_checkbox.stateChanged.connect(lambda: self.update_shortcuts())
+        self.remote_checkbox.stateChanged.connect(self.update_shortcuts)
         self.logo_audio_checkbox = QCheckBox()
         self.logo_audio_checkbox.setChecked(True)
-        self.logo_audio_checkbox.stateChanged.connect(lambda: self.update_logo_visibility())
+        self.logo_audio_checkbox.stateChanged.connect(self.update_logo_visibility)
         
         set_layout.addWidget(self.autoplay_checkbox)
         set_layout.addLayout(image_speed_layout)
@@ -1021,39 +1019,14 @@ class App(QMainWindow):
         h, m = divmod(m, 60)
         return f"{h:02d}:{m:02d}:{s:02d}" if h > 0 else f"{m:02d}:{s:02d}"
 
-    def _check_logo_player_status(self):
-        logo_path = getattr(self, '_logo_path', None)
-        if logo_path and os.path.exists(logo_path) and not is_image_file(logo_path):
-            if self.logo_player.get_state() in (vlc.State.Ended, vlc.State.Stopped):
-                self.logo_player.play()
-                self.logo_player.audio_set_volume(0)
-                self.logo_player.audio_set_mute(True)
-
-    def _update_media_player_progress(self):
-        if self._is_current_playing_image() and self.image_autoplay_start is not None:
-            elapsed = time.time() - self.image_autoplay_start
-            total = self.image_autoplay_duration
-            frac = min(1.0, elapsed / total) if total > 0 else 0.0
-            self.progress_slider.setValue(int(frac * 1000))
-            rem = max(0, int((total - elapsed) * 1000))
-            self.time_label.setText(f"{self.format_time(int(elapsed * 1000))} / {self.format_time(int(total * 1000))} (Pozostało: -{self.format_time(rem)})")
-        else:
-            pos = self.media_player.get_position()
-            if pos >= 0:
-                self.progress_slider.setValue(int(pos * 1000))
-            curr, total = self.media_player.get_time(), self.media_player.get_length()
-            if curr >= 0 and total >= 0:
-                rem = max(0, total - curr)
-                self.time_label.setText(f"{self.format_time(curr)} / {self.format_time(total)} (Pozostało: -{self.format_time(rem)})")
-                
-                # Zabezpieczenie (self-healing): przesyłamy głośność z suwaka przez 
-                # pierwsze 2 sekundy, co gwarantuje, że VLC poprawnie to odbierze
-                if curr < 2000:
-                    self.media_player.audio_set_volume(self.volume_slider.value())
-
     def check_player_status(self):
         try:
-            self._check_logo_player_status()
+            logo_path = getattr(self, '_logo_path', None)
+            if logo_path and os.path.exists(logo_path) and not is_image_file(logo_path):
+                if self.logo_player.get_state() in (vlc.State.Ended, vlc.State.Stopped):
+                    self.logo_player.play()
+                    self.logo_player.audio_set_volume(0)
+                    self.logo_player.audio_set_mute(True)
             if self.is_playing and not self.is_transitioning:
                 state = self.media_player.get_state()
                 if state in (vlc.State.Ended, vlc.State.Stopped):
@@ -1061,7 +1034,26 @@ class App(QMainWindow):
                     if state == vlc.State.Ended and self.autoplay_checkbox.isChecked():
                         self.play_next_file()
                 if not self.user_is_seeking:
-                    self._update_media_player_progress()
+                    if self._is_current_playing_image() and self.image_autoplay_start is not None:
+                        elapsed = time.time() - self.image_autoplay_start
+                        total = self.image_autoplay_duration
+                        frac = min(1.0, elapsed / total) if total > 0 else 0.0
+                        self.progress_slider.setValue(int(frac * 1000))
+                        rem = max(0, int((total - elapsed) * 1000))
+                        self.time_label.setText(f"{self.format_time(int(elapsed * 1000))} / {self.format_time(int(total * 1000))} (Pozostało: -{self.format_time(rem)})")
+                    else:
+                        pos = self.media_player.get_position()
+                        if pos >= 0:
+                            self.progress_slider.setValue(int(pos * 1000))
+                        curr, total = self.media_player.get_time(), self.media_player.get_length()
+                        if curr >= 0 and total >= 0:
+                            rem = max(0, total - curr)
+                            self.time_label.setText(f"{self.format_time(curr)} / {self.format_time(total)} (Pozostało: -{self.format_time(rem)})")
+                            
+                            # Zabezpieczenie (self-healing): przesyłamy głośność z suwaka przez 
+                            # pierwsze 2 sekundy, co gwarantuje, że VLC poprawnie to odbierze
+                            if curr < 2000:
+                                self.media_player.audio_set_volume(self.volume_slider.value())
             elif not self.user_is_seeking:
                 self.progress_slider.setValue(0)
                 self.time_label.setText(EMPTY_TIME_LABEL)
@@ -1103,7 +1095,7 @@ class App(QMainWindow):
     def _set_projection_mode_for_path(self, path):
         if getattr(self, 'logo_overlay_btn', None) and self.logo_overlay_btn.isChecked():
             self.projection_window.set_mode_audio()
-        elif path and is_audio_file(path) and self.logo_audio_checkbox.isChecked():
+        elif is_audio_file(path):
             self.projection_window.set_mode_audio()
         else:
             self.projection_window.set_mode_video()
@@ -1339,8 +1331,6 @@ class App(QMainWindow):
     def update_logo_visibility(self):
         self.projection_window.logo_viewer.show_logo = self.logo_audio_checkbox.isChecked()
         self.projection_window.logo_viewer.update()
-        path = self._current_media_path()
-        self._set_projection_mode_for_path(path)
 
     def set_position(self, v):
         self.media_player.set_position(v / 1000.0)

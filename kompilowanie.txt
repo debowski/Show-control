@@ -1,1 +1,1 @@
-python -m PyInstaller main.py -w --onedir
+python -m PyInstaller main.py -w --onedir --exclude-module PyQt6.QtWebEngine --exclude-module PyQt6.QtQml

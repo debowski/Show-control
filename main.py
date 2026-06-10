@@ -1,4 +1,4 @@
-# Show-control Version 0.2
+# Show-control Version 0.3
 # Copyright (C) 2026 Piotr Dębowski
 #
 # Professional Broadcast Edition
@@ -9,11 +9,11 @@ import time
 import json
 import logging
 
-from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
-                             QHBoxLayout, QPushButton, QSlider, QListView, 
-                             QFileDialog, QMessageBox, QCheckBox, QStackedLayout, 
+from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
+                             QHBoxLayout, QPushButton, QSlider, QListView,
+                             QFileDialog, QMessageBox, QCheckBox, QStackedLayout,
                              QLabel, QGroupBox, QAbstractItemView, QSizePolicy,
-                             QLineEdit, QSpinBox)
+                             QLineEdit, QSpinBox, QComboBox)
 from PyQt6.QtCore import Qt, QTimer, QAbstractListModel, QModelIndex, QUrl, QSortFilterProxyModel, QSettings
 from PyQt6.QtGui import QShortcut, QKeySequence, QPainter, QColor, QPixmap, QFont
 
@@ -140,32 +140,119 @@ def find_media_paths(path):
                 paths.append(media_path)
     return paths
 
-# --- STAŁE KOLORYSTYCZNE I STYLIZACJA ---
-COLOR_BG_MAIN = "#1e1e1e"
-COLOR_BG_DARK = "#252526"
-COLOR_ACCENT = "#007acc"
-COLOR_PLAY = "#2d8a49"
-COLOR_STOP = "#a1260d"
-COLOR_FADE = "#d18616"
-COLOR_HIDE = "#4a4a4a"
-COLOR_TEXT = "#d4d4d4"
-COLOR_TEXT_DIM = "#aaaaaa"
-COLOR_BORDER = "#3c3c3c"
+# ---------------------------------------------------------------------------
+# THEME ENGINE
+# ---------------------------------------------------------------------------
 
-APP_STYLESHEET = f"""
+# Each theme is a flat dict of color tokens consumed by generate_stylesheet().
+THEMES = {
+    "dark": {
+        "name": "Studio Dark",
+        "bg_main":   "#1e1e1e",
+        "bg_dark":   "#252526",
+        "bg_btn":    "#333333",
+        "bg_hover":  "#3e3e42",
+        "accent":    "#007acc",
+        "accent_hi": "#005a9e",
+        "flash_glow":"#6bbcff",
+        "play":      "#2d8a49",
+        "play_hi":   "#3aa659",
+        "stop":      "#a1260d",
+        "stop_hi":   "#be2d10",
+        "fade":      "#d18616",
+        "fade_hi":   "#e5951a",
+        "hide":      "#4a4a4a",
+        "text":      "#d4d4d4",
+        "text_dim":  "#aaaaaa",
+        "border":    "#3c3c3c",
+        "list_play": "#094771",
+    },
+    "light": {
+        "name": "Studio Light",
+        "bg_main":   "#f0f0f0",
+        "bg_dark":   "#e4e4e4",
+        "bg_btn":    "#dcdcdc",
+        "bg_hover":  "#c8c8c8",
+        "accent":    "#0063b1",
+        "accent_hi": "#004e8a",
+        "flash_glow":"#0078d7",
+        "play":      "#107c10",
+        "play_hi":   "#0e6b0e",
+        "stop":      "#c42b1c",
+        "stop_hi":   "#a52315",
+        "fade":      "#ca5010",
+        "fade_hi":   "#b8460e",
+        "hide":      "#8a8a8a",
+        "text":      "#1a1a1a",
+        "text_dim":  "#555555",
+        "border":    "#b0b0b0",
+        "list_play": "#cce4f7",
+    },
+    "stealth": {
+        "name": "Red Night (Stealth)",
+        "bg_main":   "#0a0000",
+        "bg_dark":   "#120000",
+        "bg_btn":    "#200000",
+        "bg_hover":  "#2e0000",
+        "accent":    "#cc0000",
+        "accent_hi": "#990000",
+        "flash_glow":"#ff4444",
+        "play":      "#8b0000",
+        "play_hi":   "#a00000",
+        "stop":      "#4a0000",
+        "stop_hi":   "#5e0000",
+        "fade":      "#7a3000",
+        "fade_hi":   "#8e3800",
+        "hide":      "#1e0000",
+        "text":      "#cc4444",
+        "text_dim":  "#883333",
+        "border":    "#3a0000",
+        "list_play": "#330000",
+    },
+    "broadcast": {
+        "name": "Broadcast Indigo",
+        "bg_main":   "#12131f",
+        "bg_dark":   "#1a1b2e",
+        "bg_btn":    "#252640",
+        "bg_hover":  "#32335a",
+        "accent":    "#6c63ff",
+        "accent_hi": "#4b44cc",
+        "flash_glow":"#a89cff",
+        "play":      "#2ecc71",
+        "play_hi":   "#27ae60",
+        "stop":      "#e74c3c",
+        "stop_hi":   "#c0392b",
+        "fade":      "#f39c12",
+        "fade_hi":   "#d68910",
+        "hide":      "#3d3d5c",
+        "text":      "#e8e8ff",
+        "text_dim":  "#9999cc",
+        "border":    "#3a3a5c",
+        "list_play": "#1e1f40",
+    },
+}
+
+THEME_KEYS = list(THEMES.keys())
+DEFAULT_THEME = "dark"
+
+
+def generate_stylesheet(theme_key: str) -> str:
+    """Build and return a full QSS stylesheet for the given theme key."""
+    t = THEMES.get(theme_key, THEMES[DEFAULT_THEME])
+    return f"""
     QMainWindow, QWidget {{
-        background-color: {COLOR_BG_MAIN};
-        color: {COLOR_TEXT};
+        background-color: {t['bg_main']};
+        color: {t['text']};
         font-family: 'Segoe UI', system-ui;
         font-size: 10pt;
     }}
-    
+
     QGroupBox {{
-        border: 1px solid {COLOR_BORDER};
+        border: 1px solid {t['border']};
         border-radius: 4px;
         margin-top: 1.2em;
         font-weight: bold;
-        color: {COLOR_ACCENT};
+        color: {t['accent']};
         padding: 10px;
     }}
     QGroupBox::title {{
@@ -173,122 +260,145 @@ APP_STYLESHEET = f"""
         left: 10px;
         padding: 0 5px;
     }}
-    
-    /* Przyciski */
+
+    /* --- Buttons base --- */
     QPushButton {{
-        background-color: #333333;
-        border: 1px solid {COLOR_BORDER};
+        background-color: {t['bg_btn']};
+        color: {t['text']};
+        border: 1px solid {t['border']};
         padding: 8px 15px;
         border-radius: 3px;
         min-height: 22px;
     }}
-    QPushButton:hover {{ background-color: #3e3e42; }}
-    QPushButton:pressed {{ background-color: {COLOR_ACCENT}; }}
-    QPushButton:checked {{ 
-        background-color: {COLOR_ACCENT}; 
-        color: white; 
-        font-weight: bold; 
-        border: 1px solid #005a9e; 
-    }}
-    
-    QPushButton#PlayBtn {{ 
-        background-color: {COLOR_PLAY}; 
+    QPushButton:hover  {{ background-color: {t['bg_hover']}; }}
+    QPushButton:pressed {{ background-color: {t['accent']}; color: white; }}
+    QPushButton:checked {{
+        background-color: {t['accent']};
         color: white;
-        font-weight: bold; 
-        font-size: 11pt;
-        min-height: 45px;
+        font-weight: bold;
+        border: 1px solid {t['accent_hi']};
     }}
-    QPushButton#PlayBtn:hover {{ background-color: #3aa659; }}
-    
-    QPushButton#StopBtn {{ 
-        background-color: {COLOR_STOP}; 
+
+    /* --- Transport buttons --- */
+    QPushButton#PlayBtn {{
+        background-color: {t['play']};
         color: white;
         font-weight: bold;
         font-size: 11pt;
         min-height: 45px;
     }}
-    QPushButton#StopBtn:hover {{ background-color: #be2d10; }}
-    
+    QPushButton#PlayBtn:hover  {{ background-color: {t['play_hi']}; }}
+
+    QPushButton#StopBtn {{
+        background-color: {t['stop']};
+        color: white;
+        font-weight: bold;
+        font-size: 11pt;
+        min-height: 45px;
+    }}
+    QPushButton#StopBtn:hover  {{ background-color: {t['stop_hi']}; }}
+
     QPushButton#TransportBtn {{
         font-weight: bold;
         min-height: 45px;
     }}
 
-    QPushButton#FadeBtn {{ background-color: {COLOR_FADE}; color: white; }}
-    QPushButton#FadeBtn:hover {{ background-color: #e5951a; }}
-    
-    QPushButton#HideBtn {{ background-color: {COLOR_HIDE}; color: #cccccc; }}
-
-    QPushButton[flash="true"],
-    QPushButton#PlayBtn[flash="true"],
-    QPushButton#StopBtn[flash="true"],
-    QPushButton#TransportBtn[flash="true"],
-    QPushButton#FadeBtn[flash="true"],
-    QPushButton#HideBtn[flash="true"] {{
-        background-color: {COLOR_ACCENT};
+    QPushButton#FadeBtn {{
+        background-color: {t['fade']};
         color: white;
-        border: 2px solid #6bbcff;
+    }}
+    QPushButton#FadeBtn:hover  {{ background-color: {t['fade_hi']}; }}
+
+    QPushButton#HideBtn {{
+        background-color: {t['hide']};
+        color: {t['text_dim']};
+    }}
+
+    /* --- Flash state (all named variants) --- */
+    QPushButton[flash="true"] {{
+        background-color: {t['accent']};
+        color: white;
+        border: 2px solid {t['flash_glow']};
         font-weight: bold;
     }}
-    
-    /* Tabela */
-    QTableWidget {{
-        background-color: {COLOR_BG_DARK};
-        border: 1px solid {COLOR_BORDER};
-        gridline-color: #2d2d2d;
+
+    /* --- Lists --- */
+    QListView {{
+        background-color: {t['bg_dark']};
+        border: 1px solid {t['border']};
         outline: none;
+        alternate-background-color: {t['bg_main']};
     }}
-    QHeaderView::section {{
-        background-color: #333333;
-        color: {COLOR_TEXT_DIM};
-        padding: 5px;
-        border: 1px solid {COLOR_BORDER};
-    }}
-    QTableWidget::item {{
-        padding: 5px;
-    }}
-    QTableWidget::item:selected {{
-        background-color: {COLOR_ACCENT};
+    QListView::item:selected {{
+        background-color: {t['accent']};
         color: white;
     }}
-    
-    /* Suwaki i Pola Tekstowe */
-    QLineEdit {{
-        background-color: {COLOR_BG_DARK};
-        border: 1px solid {COLOR_BORDER};
-        color: {COLOR_TEXT};
-        padding: 5px;
+
+    /* --- Inputs --- */
+    QLineEdit, QSpinBox, QComboBox {{
+        background-color: {t['bg_dark']};
+        border: 1px solid {t['border']};
+        color: {t['text']};
+        padding: 4px 6px;
         border-radius: 3px;
+        min-height: 22px;
     }}
-    
+    QComboBox::drop-down {{ border: none; }}
+    QComboBox QAbstractItemView {{
+        background-color: {t['bg_dark']};
+        color: {t['text']};
+        selection-background-color: {t['accent']};
+    }}
+
+    /* --- Sliders --- */
     QSlider::groove:horizontal {{
-        border: 1px solid {COLOR_BORDER};
+        border: 1px solid {t['border']};
         height: 8px;
-        background: {COLOR_BG_DARK};
+        background: {t['bg_dark']};
         border-radius: 4px;
     }}
     QSlider::handle:horizontal {{
-        background: {COLOR_ACCENT};
+        background: {t['accent']};
         width: 18px;
         height: 18px;
         margin: -6px 0;
         border-radius: 9px;
     }}
-    
     QSlider::groove:vertical {{
-        border: 1px solid {COLOR_BORDER};
+        border: 1px solid {t['border']};
         width: 8px;
-        background: {COLOR_BG_DARK};
+        background: {t['bg_dark']};
         border-radius: 4px;
     }}
     QSlider::handle:vertical {{
-        background: {COLOR_ACCENT};
+        background: {t['accent']};
         width: 18px;
         height: 18px;
         margin: 0 -6px;
         border-radius: 9px;
     }}
-"""
+
+    /* --- Scrollbars --- */
+    QScrollBar:vertical {{
+        background: {t['bg_dark']};
+        width: 10px;
+        border-radius: 5px;
+    }}
+    QScrollBar::handle:vertical {{
+        background: {t['border']};
+        border-radius: 5px;
+        min-height: 20px;
+    }}
+    QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ height: 0; }}
+
+    /* --- Time label --- */
+    QLabel#TimeLabel {{
+        font-size: 13pt;
+        font-weight: bold;
+        color: {t['text']};
+    }}
+    """
+
 
 class LogoViewer(QWidget):
     def __init__(self, parent=None):
@@ -589,7 +699,7 @@ class App(QMainWindow):
     def __init__(self):
         super().__init__()
         self.settings = QSettings("ShowControl", "OperatorConsole")
-        self.base_title = "Show Control - Operator Console v0.2"
+        self.base_title = "Show Control - Operator Console v0.3"
         self.setWindowTitle(self.base_title)
         self.setMinimumSize(900, 700)
         
@@ -733,7 +843,8 @@ class App(QMainWindow):
         
         self.time_label = QLabel(EMPTY_TIME_LABEL)
         self.time_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.time_label.setStyleSheet(f"font-size: 13pt; font-weight: bold; color: {COLOR_TEXT};")
+        self.time_label.setObjectName("TimeLabel")
+
         trans_layout.addWidget(self.progress_slider)
         trans_layout.addWidget(self.time_label)
         
@@ -851,7 +962,6 @@ class App(QMainWindow):
 
         image_speed_layout = QHBoxLayout()
         image_speed_title = QLabel("⏱ Prędkość grafiki")
-        image_speed_title.setStyleSheet("font-size: 8pt; color: #aaaaaa;")
         self.image_switch_delay = QSpinBox()
         self.image_switch_delay.setRange(1, 60)
         self.image_switch_delay.setValue(5)
@@ -868,11 +978,25 @@ class App(QMainWindow):
         self.logo_audio_checkbox = QCheckBox()
         self.logo_audio_checkbox.setChecked(True)
         self.logo_audio_checkbox.stateChanged.connect(lambda: self.update_logo_visibility())
-        
+
+        # --- Theme selector ---
+        theme_row = QHBoxLayout()
+        theme_label = QLabel("🎨 Motyw")
+        self.theme_combo = QComboBox()
+        for key in THEME_KEYS:
+            self.theme_combo.addItem(THEMES[key]["name"], key)
+        saved_theme = self.settings.value("theme", DEFAULT_THEME)
+        saved_idx = THEME_KEYS.index(saved_theme) if saved_theme in THEME_KEYS else 0
+        self.theme_combo.setCurrentIndex(saved_idx)
+        self.theme_combo.currentIndexChanged.connect(self._on_theme_changed)
+        theme_row.addWidget(theme_label)
+        theme_row.addWidget(self.theme_combo, stretch=1)
+
         set_layout.addWidget(self.autoplay_checkbox)
         set_layout.addLayout(image_speed_layout)
         set_layout.addWidget(self.remote_checkbox)
         set_layout.addWidget(self.logo_audio_checkbox)
+        set_layout.addLayout(theme_row)
         set_layout.addStretch()
         
         bottom_panel.addWidget(view_group, stretch=1)
@@ -1405,13 +1529,26 @@ class App(QMainWindow):
         except Exception as e:
             QMessageBox.critical(self, "Błąd odczytu", f"Nie udało się wczytać projektu:\n{e}")
 
+    def _on_theme_changed(self, _index):
+        key = self.theme_combo.currentData()
+        self.change_theme(key)
+
+    def change_theme(self, theme_key: str):
+        """Apply a new theme to the application and persist the choice."""
+        if theme_key not in THEMES:
+            theme_key = DEFAULT_THEME
+        QApplication.instance().setStyleSheet(generate_stylesheet(theme_key))
+        self.settings.setValue("theme", theme_key)
+
     def closeEvent(self, event):
         self.projection_window.close()
         super().closeEvent(event)
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-    app.setStyleSheet(APP_STYLESHEET)
+    settings = QSettings("ShowControl", "OperatorConsole")
+    initial_theme = settings.value("theme", DEFAULT_THEME)
+    app.setStyleSheet(generate_stylesheet(initial_theme))
     window = App()
     window.show()
     sys.exit(app.exec())

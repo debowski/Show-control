@@ -346,6 +346,51 @@ def generate_stylesheet(theme_key: str) -> str:
         border-radius: 3px;
         min-height: 22px;
     }}
+
+    /* SpinBox — jawnie definiujemy przyciski, bo QSS wyłącza domyślny natywny wygląd */
+    QSpinBox {{
+        padding-right: 20px;  /* zostaw miejsce na przyciski */
+    }}
+    QSpinBox::up-button {{
+        subcontrol-origin: border;
+        subcontrol-position: top right;
+        width: 18px;
+        border-left: 1px solid {t['border']};
+        border-bottom: 1px solid {t['border']};
+        border-top-right-radius: 3px;
+        background-color: {t['bg_btn']};
+    }}
+    QSpinBox::down-button {{
+        subcontrol-origin: border;
+        subcontrol-position: bottom right;
+        width: 18px;
+        border-left: 1px solid {t['border']};
+        border-bottom-right-radius: 3px;
+        background-color: {t['bg_btn']};
+    }}
+    QSpinBox::up-button:hover, QSpinBox::down-button:hover {{
+        background-color: {t['bg_hover']};
+    }}
+    QSpinBox::up-button:pressed, QSpinBox::down-button:pressed {{
+        background-color: {t['accent']};
+    }}
+    QSpinBox::up-arrow {{
+        width: 7px; height: 7px;
+        border-left: 4px solid transparent;
+        border-right: 4px solid transparent;
+        border-bottom: 5px solid {t['text_dim']};
+    }}
+    QSpinBox::down-arrow {{
+        width: 7px; height: 7px;
+        border-left: 4px solid transparent;
+        border-right: 4px solid transparent;
+        border-top: 5px solid {t['text_dim']};
+    }}
+    QSpinBox::up-arrow:hover, QSpinBox::down-arrow:hover {{
+        border-bottom-color: {t['accent']};
+        border-top-color: {t['accent']};
+    }}
+
     QComboBox::drop-down {{ border: none; }}
     QComboBox QAbstractItemView {{
         background-color: {t['bg_dark']};
@@ -399,6 +444,25 @@ def generate_stylesheet(theme_key: str) -> str:
         font-size: 13pt;
         font-weight: bold;
         color: {t['text']};
+    }}
+
+    /* --- Move buttons (lista) --- */
+    QPushButton#MoveBtn {{
+        background-color: transparent;
+        color: {t['text_dim']};
+        border: 1px solid transparent;
+        border-radius: 4px;
+        font-size: 9pt;
+        padding: 0px;
+    }}
+    QPushButton#MoveBtn:hover {{
+        background-color: {t['bg_hover']};
+        color: {t['accent']};
+        border: 1px solid {t['border']};
+    }}
+    QPushButton#MoveBtn:pressed {{
+        background-color: {t['accent']};
+        color: white;
     }}
     """
 
@@ -489,7 +553,9 @@ class PlaylistModel(QAbstractListModel):
         elif role == Qt.ItemDataRole.UserRole:
             return item['path']
         elif role == Qt.ItemDataRole.ToolTipRole:
-            return item['path']
+            return item['path'] + (" [nakładka]" if item.get('overlay', False) else "")
+        elif role == Qt.ItemDataRole.CheckStateRole:
+            return Qt.CheckState.Checked if item.get('overlay', False) else Qt.CheckState.Unchecked
         elif role == Qt.ItemDataRole.BackgroundRole:
             if row == self.playing_row:
                 return QColor("#094771")
@@ -499,10 +565,20 @@ class PlaylistModel(QAbstractListModel):
                 
         return None
 
+    def setData(self, index, value, role=Qt.ItemDataRole.EditRole):
+        if not index.isValid():
+            return False
+        if role == Qt.ItemDataRole.CheckStateRole:
+            checked = (value == Qt.CheckState.Checked) if isinstance(value, Qt.CheckState) else bool(value)
+            self._data[index.row()]['overlay'] = checked
+            self.dataChanged.emit(index, index, [role])
+            return True
+        return False
+
     def flags(self, index):
         default_flags = super().flags(index)
         if index.isValid():
-            return default_flags | Qt.ItemFlag.ItemIsDragEnabled | Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEnabled
+            return default_flags | Qt.ItemFlag.ItemIsDragEnabled | Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsUserCheckable
         return default_flags | Qt.ItemFlag.ItemIsDropEnabled
 
     def supportedDropActions(self):
@@ -558,7 +634,7 @@ class PlaylistModel(QAbstractListModel):
     def insertRows(self, row, count, parent=QModelIndex()):
         self.beginInsertRows(parent, row, row + count - 1)
         for _ in range(count):
-            self._data.insert(row, {'filename': '', 'path': ''})
+            self._data.insert(row, {'filename': '', 'path': '', 'overlay': False})
         # Aktualizacja indeksu odtwarzania przy wstawianiu powyżej
         if self.playing_row >= row:
             self.playing_row += count
@@ -621,7 +697,8 @@ class PlaylistModel(QAbstractListModel):
         for offset, path in enumerate(file_paths):
             self._data[insert_row + offset] = {
                 'filename': os.path.basename(path),
-                'path': path
+                'path': path,
+                'overlay': False
             }
 
         self.dataChanged.emit(self.index(insert_row, 0), self.index(insert_row + len(file_paths) - 1, 0))
@@ -635,6 +712,12 @@ class PlaylistModel(QAbstractListModel):
 
     def file_paths(self):
         return [item['path'] for item in self._data]
+
+    def overlay_for_row(self, row):
+        """Zwraca True jeśli dany wiersz ma ustawioną nakładkę."""
+        if 0 <= row < len(self._data):
+            return self._data[row].get('overlay', False)
+        return False
 
     def set_playing_row(self, row):
         old_row = self.playing_row
@@ -816,6 +899,8 @@ class App(QMainWindow):
         self.playlist_model = PlaylistModel(self)
         self.proxy_model = PlaylistFilterProxyModel(self)
         self.proxy_model.setSourceModel(self.playlist_model)
+        # Na żywo aktualizuj tryb projekcji gdy operator zmieni checkbox nakładki
+        self.playlist_model.dataChanged.connect(self._on_playlist_overlay_changed)
         
         self.playlist = PlaylistView(self)
         self.playlist.setModel(self.proxy_model)
@@ -832,7 +917,32 @@ class App(QMainWindow):
         self.playlist.setDefaultDropAction(Qt.DropAction.MoveAction)
         
         self.playlist.doubleClicked.connect(lambda idx: self.play_media())
-        layout.addWidget(self.playlist, stretch=1)
+
+        # --- PRZYCISKI PRZESUWANIA KOLEJNOŚCI ---
+        self.move_up_btn = QPushButton("▲")
+        self.move_up_btn.setObjectName("MoveBtn")
+        self.move_up_btn.setToolTip("Przesuń plik w górę")
+        self.move_up_btn.setFixedSize(28, 28)
+        self.move_up_btn.clicked.connect(self.move_item_up)
+
+        self.move_down_btn = QPushButton("▼")
+        self.move_down_btn.setObjectName("MoveBtn")
+        self.move_down_btn.setToolTip("Przesuń plik w dół")
+        self.move_down_btn.setFixedSize(28, 28)
+        self.move_down_btn.clicked.connect(self.move_item_down)
+
+        move_btn_layout = QVBoxLayout()
+        move_btn_layout.setContentsMargins(0, 0, 0, 0)
+        move_btn_layout.setSpacing(4)
+        move_btn_layout.addWidget(self.move_up_btn)
+        move_btn_layout.addWidget(self.move_down_btn)
+        move_btn_layout.addStretch()
+
+        playlist_row = QHBoxLayout()
+        playlist_row.setSpacing(6)
+        playlist_row.addWidget(self.playlist, stretch=1)
+        playlist_row.addLayout(move_btn_layout)
+        layout.addLayout(playlist_row, stretch=1)
 
         # --- SEKCJA TRANSPORTU ---
         transport_frame = QGroupBox("Kontrola odtwarzania")
@@ -970,7 +1080,7 @@ class App(QMainWindow):
         self.image_switch_delay.setValue(5)
         self.image_switch_delay.setSuffix(" s")
         self.image_switch_delay.setToolTip("Czas wyświetlania plików graficznych w sekundach przy autoodtwarzaniu")
-        self.image_switch_delay.setFixedWidth(80)
+        self.image_switch_delay.setFixedWidth(100)
         image_speed_layout.addWidget(image_speed_title)
         image_speed_layout.addStretch()
         image_speed_layout.addWidget(self.image_switch_delay)
@@ -1207,6 +1317,38 @@ class App(QMainWindow):
         for row in rows:
             self.playlist_model.removeRows(row, 1)
 
+    def _move_selected_item(self, direction: int):
+        """Przesuwa zaznaczony element o 1 pozycję w górę (direction=-1) lub dół (direction=+1)."""
+        idx = self.playlist.currentIndex()
+        if not idx.isValid():
+            return
+        source_idx = self.proxy_model.mapToSource(idx)
+        src_row = source_idx.row()
+        count = self.playlist_model.rowCount()
+        dst_row = src_row + direction
+        if dst_row < 0 or dst_row >= count:
+            return
+        # moveRows: destination jest "przed" wstawianym miejscem.
+        # Przy przesunięciu w dół (sourceRow < destinationChild) model robi insert_row = destinationChild - 1,
+        # więc aby element wylądował na dst_row, podajemy dst_row + 1.
+        if direction > 0:
+            self.playlist_model.moveRows(QModelIndex(), src_row, 1, QModelIndex(), dst_row + 1)
+        else:
+            self.playlist_model.moveRows(QModelIndex(), src_row, 1, QModelIndex(), dst_row)
+        # Przywróć zaznaczenie na przeniesionym elemencie
+        new_proxy_idx = self.proxy_model.mapFromSource(
+            self.playlist_model.index(dst_row, 0)
+        )
+        self.playlist.setCurrentIndex(new_proxy_idx)
+
+    def move_item_up(self):
+        self._move_selected_item(-1)
+
+    def move_item_down(self):
+        self._move_selected_item(+1)
+
+
+
     def play_media(self):
         idx = self.playlist.currentIndex()
         if not idx.isValid() or self.is_transitioning:
@@ -1228,12 +1370,25 @@ class App(QMainWindow):
 
 
     def _set_projection_mode_for_path(self, path):
-        if getattr(self, 'logo_overlay_btn', None) and self.logo_overlay_btn.isChecked():
+        # Sprawdź globalny toggle oraz per-plik checkbox
+        global_overlay = getattr(self, 'logo_overlay_btn', None) and self.logo_overlay_btn.isChecked()
+        item_overlay = self.playlist_model.overlay_for_row(self.playlist_model.playing_row)
+        if global_overlay or item_overlay:
             self.projection_window.set_mode_audio()
         elif path and is_audio_file(path) and self.logo_audio_checkbox.isChecked():
             self.projection_window.set_mode_audio()
         else:
             self.projection_window.set_mode_video()
+
+    def _on_playlist_overlay_changed(self, top_left, bottom_right, roles=None):
+        """Wywoływane gdy zmieni się CheckStateRole — od razu aktualizuje tryb projekcji
+        jeśli zmodyfikowany wiersz jest właśnie odtwarzany."""
+        if roles and Qt.ItemDataRole.CheckStateRole not in roles:
+            return
+        playing = self.playlist_model.playing_row
+        if top_left.row() <= playing <= bottom_right.row():
+            path = self._current_media_path()
+            self._set_projection_mode_for_path(path)
 
     def _current_media_path(self):
         row = self.playlist_model.playing_row
@@ -1483,8 +1638,12 @@ class App(QMainWindow):
         path, _ = QFileDialog.getSaveFileName(self, "Zapisz", "", PROJECT_FILE_FILTER)
         if path:
             try:
+                files = [
+                    {"path": item['path'], "overlay": item.get('overlay', False)}
+                    for item in self.playlist_model._data
+                ]
                 project = {
-                    "files": self.playlist_model.file_paths(),
+                    "files": files,
                     "logo": getattr(self, '_logo_path', None)
                 }
                 with open(path, 'w', encoding='utf-8') as f:
@@ -1504,24 +1663,42 @@ class App(QMainWindow):
             with open(path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
             
-            # Obsługa obu formatów: stary (lista) i nowy (słownik)
+            # Obsługa 3 formatów:
+            #   stary: lista ścieżek ["ścieżka", ...]
+            #   pośredni: {"files": ["ścieżka", ...], "logo": ...}
+            #   nowy:   {"files": [{"path": ..., "overlay": ...}, ...], "logo": ...}
             if isinstance(data, list):
-                files = data
+                files_raw = data
                 logo_path = None
             else:
-                files = data.get('files', [])
+                files_raw = data.get('files', [])
                 logo_path = data.get('logo', None)
             
             self.playlist_model.clear()
             existing_files = []
-            for p in files:
+            overlay_map = {}  # path -> bool
+            for item in files_raw:
+                if isinstance(item, str):
+                    p, overlay = item, False
+                else:
+                    p = item.get('path', '')
+                    overlay = item.get('overlay', False)
                 if os.path.exists(p):
                     existing_files.append(p)
+                    overlay_map[p] = overlay
                 else:
                     print(f"Pominięto brakujący plik podczas wczytywania: {p}")
             
-            # Przywróć obrazek jeśli zapisany plik nadal istnieje
             self.playlist_model.add_files(existing_files)
+            
+            # Przywróć flagę nakładki dla każdego wczytanego pliku
+            for i, entry in enumerate(self.playlist_model._data):
+                entry['overlay'] = overlay_map.get(entry['path'], False)
+            if self.playlist_model._data:
+                self.playlist_model.dataChanged.emit(
+                    self.playlist_model.index(0, 0),
+                    self.playlist_model.index(len(self.playlist_model._data) - 1, 0)
+                )
             
             if logo_path and os.path.exists(logo_path):
                 self._logo_path = logo_path

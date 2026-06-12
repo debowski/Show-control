@@ -2,7 +2,7 @@
 
 Profesjonalna aplikacja do zarządzania projekcją multimediów (wideo, audio i grafika) podczas wydarzeń na żywo, pokazów, prezentacji i koncertów. Program umożliwia operatorowi sterowanie listą odtwarzania na jednym ekranie (**konsola operatora**), podczas gdy obraz właściwy wyświetlany jest na drugim monitorze lub projektorze (**okno projekcji**).
 
-![Widok panelu operatora v0.3](aplikacja_v03.png)
+![Widok panelu operatora v0.3](aplikacja_v03b.png)
 
 ---
 
@@ -31,6 +31,7 @@ Zatrzymanie materiału realizowane jest z **efektem Fade Out** obsługiwanym prz
 - **Wyszukiwarka** z filtrowaniem listy w czasie rzeczywistym (skrót **F3**).
 - Skrót **F2** przenosi fokus klawiatury na pierwszy element listy.
 - Podwójne kliknięcie elementu uruchamia odtwarzanie.
+- **☑ Checkbox nakładki per-plik** — każdy element listy posiada checkbox po lewej stronie. Zaznaczenie go sprawia, że podczas odtwarzania tego konkretnego pliku okno projekcji automatycznie przełącza się w tryb nakładki (wyświetla logo zamiast wideo). Dzięki temu przed całym pokazem można z góry skonfigurować, które materiały mają mieć aktywną nakładkę, a które mają wyświetlać wideo wprost. Stan checkboxów jest zapisywany w pliku projektu (JSON) i wczytywany przy kolejnym otwarciu.
 
 ### 🖼️ Obsługa plików graficznych (obrazy statyczne)
 - Pliki `JPG`, `PNG`, `BMP`, `GIF` wyświetlane są jako pełnoekranowy obraz w oknie projekcji.

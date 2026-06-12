@@ -329,6 +329,9 @@ def generate_stylesheet(theme_key: str) -> str:
         outline: none;
         alternate-background-color: {t['bg_main']};
     }}
+    QListView::item:hover {{
+        background-color: {t['bg_hover']};
+    }}
     QListView::item:selected {{
         background-color: {t['accent']};
         color: white;

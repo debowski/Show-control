@@ -1,102 +1,139 @@
-# Show Control — Operator & Projection v2.0
+# Show Control — Operator Console v0.3
 
-Profesjonalna aplikacja do zarządzania projekcją multimediów (wideo i audio) podczas wydarzeń na żywo, pokazów, prezentacji i koncertów. Program umożliwia operatorowi sterowanie listą odtwarzania na jednym ekranie (konsola operatora), podczas gdy obraz właściwy wyświetlany jest na drugim monitorze lub projektorze (okno projekcji).
+Profesjonalna aplikacja do zarządzania projekcją multimediów (wideo, audio i grafika) podczas wydarzeń na żywo, pokazów, prezentacji i koncertów. Program umożliwia operatorowi sterowanie listą odtwarzania na jednym ekranie (**konsola operatora**), podczas gdy obraz właściwy wyświetlany jest na drugim monitorze lub projektorze (**okno projekcji**).
 
-![Widok na panel operatora v2.0](aplikacja.png)
+![Widok panelu operatora v0.3](aplikacja_v03.png)
 
 ---
 
 ## Funkcje i opis działania aplikacji
 
 ### 🖥️ Dwuekranowy tryb pracy
-Aplikacja automatycznie wykrywa drugi monitor i otwiera na nim **okno projekcji** w trybie pełnoekranowym. Operator steruje całością z **panelu konsoli** na pierwszym ekranie. Oba okna są całkowicie niezależne, co eliminuje rozpraszanie widza interfejsem sterowania.
+Aplikacja automatycznie wykrywa drugi monitor i otwiera na nim **okno projekcji** w trybie pełnoekranowym. Operator steruje całością z **panelu konsoli** na pierwszym ekranie. Oba okna są całkowicie niezależne, co eliminuje rozpraszanie widza interfejsem sterowania. Dwukrotne kliknięcie okna projekcji przełącza je między trybem pełnoekranowym a okienkowym.
 
-### 🎬 Silnik odtwarzania — LibVLC i FFmpeg
+### 🎬 Silnik odtwarzania — LibVLC
 Rdzeń odtwarzania oparty na bibliotece **python-vlc** (silnik LibVLC), co zapewnia:
-- Wsparcie szerokiej gamy formatów: wideo (`MP4`, `MKV`, `AVI`, `MOV` i inne) oraz audio (`MP3`, `WAV`, `FLAC`, `AAC`, `OGG`, `M4A`).
-- Płynne odtwarzanie z wyjściem Direct3D11 (Windows), co minimalizuje obciążenie procesora.
-- Wyjście audio przez WaveOut, bez problemu z „pukaniem" przy wyciszaniu.
-- Wykorzystanie narzędzia **ffprobe** (część pakietu FFmpeg) do błyskawicznego **parsowania czasu trwania** każdego pliku w tle — bez ingerencji w główne odtwarzanie.
+- Szerokie wsparcie formatów: wideo (`MP4`, `MKV`, `AVI`, `MOV` i inne), audio (`MP3`, `WAV`, `FLAC`, `AAC`, `OGG`, `M4A`) oraz grafika (`JPG`, `PNG`, `BMP`, `GIF`).
+- Płynne odtwarzanie z wyjściem Direct3D11 (Windows), minimalizujące obciążenie procesora.
+- Wyjście audio przez WaveOut, bez charakterystycznego „pukania" przy wyciszaniu.
+- Dwa niezależne odtwarzacze VLC: **główny** (treść listy) i **nakładki** (logo/wideo w tle).
 
-### 🎞️ Płynne przejścia (Crossfade)
-Przełączanie między materiałami odbywa się z **efektem Fade Out / Fade In** realizowanym w osobnym wątku:
-- Przed zatrzymaniem aktualnego materiału — płynne ściemnienie obrazu i ściszanie głosu.
-- Bezpośrednio po uruchomieniu nowego — stopniowe rozjaśnianie obrazu i podbijanie głosu do ustawionego poziomu.
-- Czas trwania efektu fade regulowany suwakiem: od **0.2 s do 2.0 s**.
+### 🎞️ Płynne przejścia — Fade Out
+Zatrzymanie materiału realizowane jest z **efektem Fade Out** obsługiwanym przez dedykowany timer:
+- Jednoczesne płynne ściemnienie obrazu (poprzez adjust brightness) i ściszenie dźwięku do zera.
+- Czas trwania efektu regulowany suwakiem **Fade**: od **0.2 s do 2.0 s**.
+- Po zakończeniu fade brightness okna projekcji jest automatycznie przywracana do ustawionej wartości.
 
 ### 📋 Lista odtwarzania (Playlist)
-- Dodawanie plików przez dialog systemowy lub metodą **Drag & Drop** bezpośrednio na listę.
-- Zmiana kolejności elementów metodą przeciągnij-i-upuść (**Drag & Drop**) wewnątrz listy — z poprawnym śledzeniem aktualnie odtwarzanego wiersza.
-- Automatyczne **parsowanie czasu trwania** każdego pliku w tle (wątek z semaforem ograniczającym do 2 równoczesnych operacji).
-- Podświetlanie aktualnie odtwarzanego elementu kolorem niebieskim z pogrubieniem czcionki.
-- **Wyszukiwarka** z filtrowaniem listy w czasie rzeczywistym (pole tekstowe nad listą).
+- Dodawanie plików przez dialog systemowy (przycisk **Dodaj pliki**) lub metodą **Drag & Drop** z Eksploratora Windows.
+- Zmiana kolejności elementów metodą **Drag & Drop** wewnątrz listy — z poprawnym śledzeniem aktualnie odtwarzanego wiersza.
+- Podświetlanie aktualnie odtwarzanego elementu (wyróżnione tło + pogrubiona czcionka).
+- **Wyszukiwarka** z filtrowaniem listy w czasie rzeczywistym (skrót **F3**).
+- Skrót **F2** przenosi fokus klawiatury na pierwszy element listy.
+- Podwójne kliknięcie elementu uruchamia odtwarzanie.
+
+### 🖼️ Obsługa plików graficznych (obrazy statyczne)
+- Pliki `JPG`, `PNG`, `BMP`, `GIF` wyświetlane są jako pełnoekranowy obraz w oknie projekcji.
+- W trybie **Autoodtwarzania** każdy obraz wyświetlany jest przez ustawiony czas (**Prędkość grafiki**: 1–60 s), po którym automatycznie przechodzi do następnej pozycji.
+- Pasek postępu i etykieta czasu odliczają czas wyświetlania grafiki.
 
 ### 💾 Zarządzanie projektami
-- Zapis listy odtwarzania do pliku **JSON** (pełne ścieżki do plików).
-- Wczytanie projektu z automatyczną weryfikacją istnienia każdego pliku na dysku.
-- Skrót klawiszowy **F12** do szybkiego zapisu.
+- Zapis listy odtwarzania do pliku **JSON** (pełne ścieżki do plików + ścieżka do nakładki).
+- Wczytanie projektu z automatyczną weryfikacją istnienia każdego pliku na dysku — brakujące pliki są pomijane z ostrzeżeniem w konsoli.
+- **Automatyczne wczytanie ostatniego projektu** przy starcie aplikacji (zapamiętywane przez QSettings).
+- Aktywny projekt wyświetlany jest w tytule okna: `Show Control - Operator Console v0.3 - [nazwa.json]`.
+- Skrót klawiszowy **F12** do szybkiego zapisu projektu.
+- Obsługa starego formatu (lista plików) i nowego formatu (słownik z kluczem `files` i `logo`).
 
 ### 🎚️ Kontrola transportu
-| Akcja | Przycisk / Skrót |
+
+| Akcja | Przycisk | Skrót |
+|---|---|---|
+| Odtwórz zaznaczony element | **▶ PLAY** | F4 / Enter |
+| Pauza / Wznów | **⏸ PAUSE** | Spacja |
+| Zatrzymaj | **⏹ STOP** | F5 |
+| Poprzedni element | **⏮ Poprzedni** | F6 / ↑ (lub ←) |
+| Następny element | **Następny ⏭** | F7 / ↓ (lub →) |
+| Fade Out i Stop | **✨ Fade Out** | F1 |
+
+Pasek postępu umożliwia **przewijanie** materiału — flaga `user_is_seeking` wstrzymuje odczyty pozycji podczas przeciągania suwaka, zapobiegając migotaniu wskaźnika.
+
+### 🔊 Panel Sterowania (suwaki pionowe)
+
+Sekcja **Sterowanie** zawiera trzy niezależne suwaki pionowe:
+
+| Suwak | Zakres | Opis |
+|---|---|---|
+| **🔊 Głośność** | 0–100% | Głośność wyjścia audio VLC w czasie rzeczywistym |
+| **💡 Jasność** | 0–100% | Jasność i kontrast obrazu w oknie projekcji (VLC adjust) |
+| **⏱ Fade** | 0.2 s–2.0 s | Czas trwania efektu wygaszania / rozjaśniania |
+
+Suwak jasności działa jednocześnie na główny odtwarzacz wideo oraz na odtwarzacz nakładki — pozwala na delikatne przyciemnienie całej projekcji bez przerywania odtwarzania.
+
+### 🖼️ Nakładka (Logo Overlay)
+
+Aplikacja obsługuje **nakładkę** wyświetlaną w oknie projekcji zamiast lub na tle treści głównej:
+
+- **Obraz statyczny** (PNG, JPG, BMP, GIF) — wyświetlany przez `LogoViewer` z zachowaniem proporcji, centrowany na czarnym tle.
+- **Wideo w pętli** (MP4, MKV) — odtwarzane przez drugi odtwarzacz VLC w trybie `input-repeat=65535` (nieskończona pętla), bez dźwięku.
+- Wybór pliku nakładki: przycisk **📁 Wybierz plik nakładki**.
+- **Nakładka na obraz (F9)** — przełącza widok projekcji na tryb nakładki niezależnie od odtwarzanego materiału; przydatne do wyświetlania logo podczas przerw.
+- **Obrazek dla Audio (F10)** — po włączeniu, podczas odtwarzania pliku audio widok projekcji automatycznie przełącza się na nakładkę (zamiast pustego czarnego okna VLC).
+- Jasność nakładki zsynchronizowana ze suwakiem Jasności.
+
+### 🎨 Motywy interfejsu
+
+Aplikacja oferuje cztery wbudowane motywy kolorystyczne (wybór w sekcji Ustawienia):
+
+| Motyw | Opis |
 |---|---|
-| Odtwórz wybrany element | **▶ PLAY** / F4 / Enter |
-| Pauza / Wznów | **⏸ PAUSE** / Spacja |
-| Zatrzymaj | **⏹ STOP** / F5 |
-| Poprzedni element | **⏮ Poprzedni** / F6 |
-| Następny element | **Następny ⏭** / F7 |
-| Fade Out i Stop | **✨ Fade Out** / F8 |
+| **Studio Dark** | Ciemny, neutralny — klasyczne środowisko studio |
+| **Studio Light** | Jasny, do pracy w dobrze oświetlonych pomieszczeniach |
+| **Red Night (Stealth)** | Czerwony na czarnym — praca w ciemności bez utraty akomodacji wzroku |
+| **Broadcast Indigo** | Indygo/fiolet z żywymi akcentami — domyślny w v0.3 |
 
-Pasek postępu umożliwia **przewijanie** materiału (przeciągnięcie suwaka) bez zakłócania animacji aktualizacji czasu — flaga `user_is_seeking` wstrzymuje odczyty pozycji podczas przeciągania.
-
-### 🔊 Panel Audio
-- **Suwak głośności** (0–100%) — zmienia głośność VLC w czasie rzeczywistym oraz mnożnik wizualizatora.
-- **Suwak czasu Fade** — reguluje czas efektu wygaszania/rozjaśniania od 0.2 s do 2.0 s.
-- Etykiety wyświetlają aktualne wartości obu suwaków.
-
-### 🌊 Wizualizator Audio
-Dla plików dźwiękowych (lub w trybie Logo Overlay) okno projekcji wyświetla animowany **wizualizator słupkowy**:
-- 30 słupków z symulowanym widmem częstotliwości (sinusoidalne wagi środkowe + randomizacja).
-- Płynna animacja wygładzania (lerp 40%) odświeżana co 50 ms.
-- Wysokość słupków skalowana proporcjonalnie do bieżącego poziomu głośności.
-- Opcjonalne wyświetlanie **logo** (grafika PNG/JPG) nad wizualizatorem.
-
-### 🖼️ Widok i Efekty
-| Funkcja | Opis |
-|---|---|
-| **Pełny Ekran** (F9) | Przełącza okno projekcji w tryb pełnoekranowy / okienkowy. |
-| **Ukryj/Pokaż okno** | Chowa okno projekcji bez zamykania aplikacji (zachowanie HWND). |
-| **Logo Overlay** (F11) | Zastępuje wideo wizualizatorem z logo — przydatne podczas przerw. |
-| **Wybierz Logo** | Wczytuje grafikę (PNG/JPG/BMP) jako logo dla wizualizatora. |
+Wybrany motyw zapisywany jest automatycznie przez QSettings i przywracany przy kolejnym uruchomieniu.
 
 ### ⚙️ Ustawienia
-- **Autoodtwarzanie** — po zakończeniu pliku automatycznie startuje kolejny.
-- **Tryb Pilota (L/P)** — zmienia mapowanie nawigacji: strzałki **Lewo/Prawo** zamiast Góra/Dół, co jest standardem dla pilotów do prezentacji.
-- **Logo dla Audio (F10)** — włącza/wyłącza wyświetlanie logo na wizualizatorze.
+
+| Opcja | Skrót | Opis |
+|---|---|---|
+| **Autoodtwarzanie** | — | Po zakończeniu pliku automatycznie startuje kolejny element listy |
+| **Prędkość grafiki** | — | Czas wyświetlania pliku graficznego (1–60 s) przy autoodtwarzaniu |
+| **Tryb Pilota (L/P)** | — | Nawigacja strzałkami Lewo/Prawo zamiast Góra/Dół (standard pilotów prezentacji) |
+| **Obrazek dla Audio** | F10 | Wyświetlaj nakładkę automatycznie gdy gra plik audio |
+| **Motyw** | — | Wybór motywu kolorystycznego interfejsu |
 
 ### ⌨️ Pełna lista skrótów klawiszowych
+
 | Skrót | Akcja |
 |---|---|
-| **Spacja** | Play / Pauza |
-| **Enter / Return** | Odtwórz zaznaczony materiał |
-| **Delete** | Usuń zaznaczony element z listy |
-| **F4** | Play |
+| **F1** | Fade Out (płynne wyciszenie i ściemnienie) |
+| **F2** | Fokus na pierwszy element listy |
+| **F3** | Fokus na pole wyszukiwania |
+| **F4 / Enter** | Play (odtwórz zaznaczony element) |
 | **F5** | Stop |
 | **F6** | Poprzedni plik |
 | **F7** | Następny plik |
-| **F8** | Fade Out |
-| **F9** | Pełny ekran okna projekcji |
-| **F10** | Przełącz wyświetlanie logo |
-| **F11** | Logo Overlay (on/off) |
+| **F9** | Nakładka na obraz (włącz/wyłącz) |
+| **F10** | Obrazek dla Audio (włącz/wyłącz) |
+| **F11** | Pełny ekran okna projekcji |
 | **F12** | Zapisz projekt |
+| **Spacja** | Play / Pauza |
+| **Delete** | Usuń zaznaczony element z listy |
 | **↑ / ↓** | Nawigacja po liście (tryb standardowy) |
 | **← / →** | Nawigacja po liście (tryb pilota) |
 
+### 🔁 Feedback przycisków
+Każdy przycisk wyposażony jest w animację **flash** (podświetlenie na 180 ms) po naciśnięciu lub użyciu skrótu klawiszowego — zapewnia operatorowi wizualne potwierdzenie wykonanej akcji bez konieczności patrzenia na ekran.
+
 ### 🛡️ Stabilność i bezpieczeństwo
 - Wszystkie operacje VLC w wątkach tła — GUI nigdy nie blokuje odtwarzania.
-- Semafory ograniczające liczbę równoczesnych operacji parsowania.
-- Kompleksowa obsługa wyjątków (`try-except`) z cichym fail-safe — aplikacja nie crashuje.
-- Zachowanie `HWND` okna projekcji przy ukrywaniu (event `closeEvent` ignoruje zamknięcie).
+- Mechanizm **self-healing**: przez pierwsze 2 sekundy odtwarzania aplikacja cyklicznie synchronizuje poziom głośności z suwakiem, gwarantując poprawne ustawienie przez VLC.
+- Kompleksowa obsługa wyjątków (`try-except`) z cichym fail-safe — aplikacja nie crashuje przy błędach odtwarzacza.
+- Zachowanie `HWND` okna projekcji przy ukrywaniu (event `closeEvent` ignoruje zamknięcie, co chroni przed utratą uchwytu okna).
 - Brak użycia `mute` na poziomie systemu (powoduje „pukanie" na Win32) — zamiast tego zerowanie wolumenu VLC.
+- Obsługa starego i nowego formatu pliku projektu JSON — pełna kompatybilność wsteczna.
 
 ---
 
@@ -104,16 +141,15 @@ Dla plików dźwiękowych (lub w trybie Logo Overlay) okno projekcji wyświetla 
 
 ### ✅ Opcja A — Gotowy plik wykonywalny `.exe` (bez instalacji Python)
 
-Pobierz plik `ShowControl.exe` z folderu `dist/` i uruchom go bezpośrednio.
+Pobierz plik `ShowControl.exe` z folderu `dist/` i uruchom bezpośrednio.
 
-> **Wymaganie:** Zainstalowany **VLC Media Player w wersji 64-bitowej** (standardowa instalacja z [videolan.org](https://www.videolan.org/)) oraz pakiet **FFmpeg** (narzędzie `ffprobe` musi być dostępne w PATH). Aplikacja korzysta z bibliotek VLC oraz ffprobe zainstalowanych w systemie.
+> **Wymaganie:** Zainstalowany **VLC Media Player w wersji 64-bitowej** (standardowa instalacja z [videolan.org](https://www.videolan.org/)). Aplikacja korzysta z bibliotek VLC zainstalowanych w systemie.
 
 ### 🐍 Opcja B — Uruchomienie ze źródeł (Python)
 
 #### Wymagania
 1. **Python 3.10+** (zalecany 3.11+)
 2. **VLC Media Player 64-bit**
-3. **FFmpeg** (z dostępnym narzędziem `ffprobe`)
 
 #### Kroki instalacji
 1. Sklonuj repozytorium lub pobierz pliki projektu.
@@ -151,6 +187,8 @@ Plik wynikowy znajdzie się w folderze `dist\ShowControl.exe`.
 | **Brak obrazu na drugim ekranie** | Sprawdź ustawienia ekranów w systemie: tryb **„Rozszerz te ekrany"**. |
 | **Plik nie odtwarza się** | Sprawdź czy ścieżka do pliku nie zawiera znaków specjalnych. Upewnij się, że format jest obsługiwany przez VLC. |
 | **Okno projekcji zniknęło** | Użyj przycisku **„Pokaż Okno"** na panelu operatora. |
+| **Brak dźwięku na starcie** | Przesuń suwak głośności — VLC może wymagać krótkiego czasu na zainicjowanie wyjścia audio. |
+| **Nakładka wideo się nie zapętla** | Upewnij się, że wybrany plik wideo jest obsługiwany przez VLC i nie jest uszkodzony. |
 
 ---
 

@@ -1,1 +1,5 @@
 python -m PyInstaller main.py -w --onedir --exclude-module PyQt6.QtWebEngine --exclude-module PyQt6.QtQml
+
+
+
+python -m nuitka main.py --enable-plugin=pyqt6 --standalone --output-dir=dist --follow-imports

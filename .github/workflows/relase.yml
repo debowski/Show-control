@@ -3,11 +3,11 @@ name: Build and Release
 on:
   push:
     tags:
-      - 'v*' # Uruchomi się tylko, gdy dodasz tag zaczynający się od "v" (np. v1.0.0)
+      - 'v*' # Uruchomi się, gdy dodasz tag np. v1.0.0
 
 jobs:
   build:
-    runs-on: windows-latest 
+    runs-on: windows-latest
 
     steps:
     - name: Sprawdzenie kodu (Checkout)
@@ -16,29 +16,30 @@ jobs:
     - name: Konfiguracja Pythona
       uses: actions/setup-python@v5
       with:
-        python-state: '3.14' # Wersję Pythona
+        python-version: '3.11'
 
     - name: Instalacja zależności
       run: |
         python -m pip install --upgrade pip
         pip install pyinstaller
-        # Jeśli masz plik requirements.txt, odkomentuj poniższą linijkę:
         pip install -r requirements.txt
 
-    - name: Kompilacja PyInstallerem (--onedir)
+    - name: Kompilacja PyInstallerem
       run: |
-        # Zmień "main.py" na nazwę Twojego głównego pliku skryptu
         pyinstaller --noconfirm --onedir --windowed main.py
+
+    - name: Kopiowanie pliku shortcuts.json do folderu dist
+      run: |
+        xcopy shortcuts.json dist\main\ /Y
 
     - name: Pakowanie folderu wyjściowego do ZIP
       shell: pwsh
       run: |
-        # PyInstaller domyślnie tworzy folder w katalogu "dist/" o nazwie Twojego skryptu
-        Compress-Archive -Path dist/main -DestinationPath Show-Control-windows.zip
+        Compress-Archive -Path dist/main -DestinationPath show-control-windows.zip
 
     - name: Tworzenie GitHub Release i Upload pliku ZIP
       uses: softprops/action-gh-release@v2
       with:
-        files: Show-Control-windows.zip
+        files: show-control-windows.zip
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

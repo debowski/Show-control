@@ -1,0 +1,44 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*' # Uruchomi się tylko, gdy dodasz tag zaczynający się od "v" (np. v1.0.0)
+
+jobs:
+  build:
+    runs-on: windows-latest 
+
+    steps:
+    - name: Sprawdzenie kodu (Checkout)
+      uses: actions/checkout@v4
+
+    - name: Konfiguracja Pythona
+      uses: actions/setup-python@v5
+      with:
+        python-state: '3.14' # Wersję Pythona
+
+    - name: Instalacja zależności
+      run: |
+        python -m pip install --upgrade pip
+        pip install pyinstaller
+        # Jeśli masz plik requirements.txt, odkomentuj poniższą linijkę:
+        pip install -r requirements.txt
+
+    - name: Kompilacja PyInstallerem (--onedir)
+      run: |
+        # Zmień "main.py" na nazwę Twojego głównego pliku skryptu
+        pyinstaller --noconfirm --onedir --windowed main.py
+
+    - name: Pakowanie folderu wyjściowego do ZIP
+      shell: pwsh
+      run: |
+        # PyInstaller domyślnie tworzy folder w katalogu "dist/" o nazwie Twojego skryptu
+        Compress-Archive -Path dist/main -DestinationPath Show-Control-windows.zip
+
+    - name: Tworzenie GitHub Release i Upload pliku ZIP
+      uses: softprops/action-gh-release@v2
+      with:
+        files: Show-Control-windows.zip
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

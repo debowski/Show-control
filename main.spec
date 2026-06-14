@@ -10,7 +10,7 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=['PyQt6.QtWebEngine', 'PyQt6.QtQml'],
+    excludes=['PyQt6.QtWebEngine', 'PyQt6.QtQml', 'PyQt6.QtNetwork', 'PyQt6.QtPdf', 'PyQt6.QtMultimedia', 'PyQt6.QtMultimediaWidgets', 'PyQt6.QtSql', 'PyQt6.QtXml', 'PyQt6.QtBluetooth', 'PyQt6.QtPositioning', 'PyQt6.QtSensors'],
     noarchive=False,
     optimize=0,
 )
@@ -32,6 +32,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    icon=['ikona_sc.ico'],
 )
 coll = COLLECT(
     exe,

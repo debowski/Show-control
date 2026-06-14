@@ -1,5 +1,4 @@
-python -m PyInstaller main.py -w --onedir --exclude-module PyQt6.QtWebEngine --exclude-module PyQt6.QtQml
-
+python -m PyInstaller main.py -w --onedir --icon=ikona_sc.ico --clean --exclude-module PyQt6.QtWebEngine --exclude-module PyQt6.QtQml --exclude-module PyQt6.QtNetwork --exclude-module PyQt6.QtPdf --exclude-module PyQt6.QtMultimedia --exclude-module PyQt6.QtMultimediaWidgets --exclude-module PyQt6.QtSql --exclude-module PyQt6.QtXml --exclude-module PyQt6.QtBluetooth --exclude-module PyQt6.QtPositioning --exclude-module PyQt6.QtSensors
 
 
 python -m nuitka main.py --enable-plugin=pyqt6 --standalone --output-dir=dist --follow-imports

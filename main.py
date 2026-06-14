@@ -1,4 +1,4 @@
-# Show-control Version 0.3
+# Show-control Version 0.3.4
 # Copyright (C) 2026 Piotr Dębowski
 #
 # Professional Broadcast Edition
@@ -15,7 +15,7 @@ from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                              QLabel, QGroupBox, QAbstractItemView, QSizePolicy,
                              QLineEdit, QSpinBox, QComboBox)
 from PyQt6.QtCore import Qt, QTimer, QAbstractListModel, QModelIndex, QUrl, QSortFilterProxyModel, QSettings
-from PyQt6.QtGui import QShortcut, QKeySequence, QPainter, QColor, QPixmap, QFont
+from PyQt6.QtGui import QShortcut, QKeySequence, QPainter, QColor, QPixmap, QFont, QIcon
 
 logging.basicConfig(level=logging.ERROR, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -503,6 +503,17 @@ class ProjectionWindow(QWidget):
         self.stacked_layout.addWidget(self.logo_container)
         self.set_mode_video()
 
+                # --- DODAWANIE IKONY ---
+        # Ścieżka do pliku .ico w tym samym folderze
+        nazwa_pliku_ikony = 'ikona_bw.ico'
+        sciezka_do_ikony = os.path.join(os.path.dirname(__file__), nazwa_pliku_ikony)
+
+        # Sprawdź na wszelki wypadek, czy plik istnieje
+        if os.path.exists(sciezka_do_ikony):
+            self.setWindowIcon(QIcon(sciezka_do_ikony))
+        else:
+            print(f"Ostrzeżenie: Nie znaleziono pliku ikony pod adresem: {sciezka_do_ikony}")
+
     def set_mode_video(self):
         self.stacked_layout.setCurrentWidget(self.video_widget)
         
@@ -785,10 +796,22 @@ class App(QMainWindow):
     def __init__(self):
         super().__init__()
         self.settings = QSettings("ShowControl", "OperatorConsole")
-        self.base_title = "Show Control - Operator Console v0.3"
+        self.base_title = "Show Control - Operator Console v0.3.4"
         self.setWindowTitle(self.base_title)
         self.setMinimumSize(900, 700)
         
+        # --- DODAWANIE IKONY ---
+        # Ścieżka do pliku .ico w tym samym folderze
+        nazwa_pliku_ikony = 'ikona_sc.ico'
+        sciezka_do_ikony = os.path.join(os.path.dirname(__file__), nazwa_pliku_ikony)
+
+        # Sprawdź na wszelki wypadek, czy plik istnieje
+        if os.path.exists(sciezka_do_ikony):
+            self.setWindowIcon(QIcon(sciezka_do_ikony))
+        else:
+            print(f"Ostrzeżenie: Nie znaleziono pliku ikony pod adresem: {sciezka_do_ikony}")
+
+
         try:
             self.vlc_instance = vlc.Instance('--no-xlib', '--quiet', '--aout=waveout', '--video-filter=adjust')
             self.media_player = self.vlc_instance.media_player_new()

@@ -1,4 +1,4 @@
-# Show-control Version 0.3.4
+# Show-control Version 0.3.5
 # Copyright (C) 2026 Piotr Dębowski
 #
 # Professional Broadcast Edition
@@ -796,7 +796,7 @@ class App(QMainWindow):
     def __init__(self):
         super().__init__()
         self.settings = QSettings("ShowControl", "OperatorConsole")
-        self.base_title = "Show Control - Operator Console v0.3.4"
+        self.base_title = "Show Control - Operator Console v0.3.5"
         self.setWindowTitle(self.base_title)
         self.setMinimumSize(900, 700)
         
@@ -1396,12 +1396,20 @@ class App(QMainWindow):
         # Sprawdź globalny toggle oraz per-plik checkbox
         global_overlay = getattr(self, 'logo_overlay_btn', None) and self.logo_overlay_btn.isChecked()
         item_overlay = self.playlist_model.overlay_for_row(self.playlist_model.playing_row)
-        if global_overlay or item_overlay:
-            self.projection_window.set_mode_audio()
-        elif path and is_audio_file(path) and self.logo_audio_checkbox.isChecked():
+        
+        show_audio_logo = False
+        if path and is_audio_file(path) and self.logo_audio_checkbox.isChecked():
+            show_audio_logo = True
+            
+        show_overlay = global_overlay or item_overlay or show_audio_logo
+        
+        if show_overlay:
             self.projection_window.set_mode_audio()
         else:
             self.projection_window.set_mode_video()
+            
+        self.projection_window.logo_viewer.show_logo = show_overlay
+        self.projection_window.logo_viewer.update()
 
     def _on_playlist_overlay_changed(self, top_left, bottom_right, roles=None):
         """Wywoływane gdy zmieni się CheckStateRole — od razu aktualizuje tryb projekcji
@@ -1635,15 +1643,10 @@ class App(QMainWindow):
                 self.logo_player.set_hwnd(int(self.projection_window.logo_video_widget.winId()))
 
     def toggle_logo_overlay(self, checked):
-        if checked:
-            self.projection_window.set_mode_audio()
-        else:
-            path = self._current_media_path()
-            self._set_projection_mode_for_path(path) if path else self.projection_window.set_mode_video()
+        path = self._current_media_path()
+        self._set_projection_mode_for_path(path)
 
     def update_logo_visibility(self):
-        self.projection_window.logo_viewer.show_logo = self.logo_audio_checkbox.isChecked()
-        self.projection_window.logo_viewer.update()
         path = self._current_media_path()
         self._set_projection_mode_for_path(path)
 

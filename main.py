@@ -1,4 +1,4 @@
-# Show-control Version 0.3.5
+# Show-control Version 0.3.6
 # Copyright (C) 2026 Piotr Dębowski
 #
 # Professional Broadcast Edition
@@ -9,12 +9,15 @@ import time
 import json
 import logging
 
+# Wyciszenie nieszkodliwych ostrzeżeń Qt na Windowsie dotyczących obramowania okien
+os.environ["QT_LOGGING_RULES"] = "qt.qpa.window=false"
+
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                              QHBoxLayout, QPushButton, QSlider, QListView,
                              QFileDialog, QMessageBox, QCheckBox, QStackedLayout,
                              QLabel, QGroupBox, QAbstractItemView, QSizePolicy,
-                             QLineEdit, QSpinBox, QComboBox)
-from PyQt6.QtCore import Qt, QTimer, QAbstractListModel, QModelIndex, QUrl, QSortFilterProxyModel, QSettings
+                             QLineEdit, QSpinBox, QComboBox, QStyledItemDelegate)
+from PyQt6.QtCore import Qt, QTimer, QAbstractListModel, QModelIndex, QUrl, QSortFilterProxyModel, QSettings, QRect, QEvent
 from PyQt6.QtGui import QShortcut, QKeySequence, QPainter, QColor, QPixmap, QFont, QIcon
 
 logging.basicConfig(level=logging.ERROR, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -563,8 +566,15 @@ class PlaylistModel(QAbstractListModel):
             return item['filename']
         elif role == Qt.ItemDataRole.UserRole:
             return item['path']
+        elif role == Qt.ItemDataRole.UserRole + 1:
+            return item.get('overlay_path')
         elif role == Qt.ItemDataRole.ToolTipRole:
-            return item['path'] + (" [nakładka]" if item.get('overlay', False) else "")
+            tooltip = item['path']
+            if item.get('overlay_path'):
+                tooltip += f" [nakładka: {os.path.basename(item['overlay_path'])}]"
+            elif item.get('overlay', False):
+                tooltip += " [nakładka globalna]"
+            return tooltip
         elif role == Qt.ItemDataRole.CheckStateRole:
             return Qt.CheckState.Checked if item.get('overlay', False) else Qt.CheckState.Unchecked
         elif role == Qt.ItemDataRole.BackgroundRole:
@@ -645,7 +655,7 @@ class PlaylistModel(QAbstractListModel):
     def insertRows(self, row, count, parent=QModelIndex()):
         self.beginInsertRows(parent, row, row + count - 1)
         for _ in range(count):
-            self._data.insert(row, {'filename': '', 'path': '', 'overlay': False})
+            self._data.insert(row, {'filename': '', 'path': '', 'overlay': False, 'overlay_path': None})
         # Aktualizacja indeksu odtwarzania przy wstawianiu powyżej
         if self.playing_row >= row:
             self.playing_row += count
@@ -709,7 +719,8 @@ class PlaylistModel(QAbstractListModel):
             self._data[insert_row + offset] = {
                 'filename': os.path.basename(path),
                 'path': path,
-                'overlay': False
+                'overlay': False,
+                'overlay_path': None
             }
 
         self.dataChanged.emit(self.index(insert_row, 0), self.index(insert_row + len(file_paths) - 1, 0))
@@ -729,6 +740,20 @@ class PlaylistModel(QAbstractListModel):
         if 0 <= row < len(self._data):
             return self._data[row].get('overlay', False)
         return False
+
+    def overlay_path_for_row(self, row):
+        """Zwraca ścieżkę do nakładki dla danego wiersza lub None."""
+        if 0 <= row < len(self._data):
+            return self._data[row].get('overlay_path')
+        return None
+
+    def set_overlay_path(self, row, path):
+        """Ustawia indywidualną nakładkę dla wiersza."""
+        if 0 <= row < len(self._data):
+            self._data[row]['overlay_path'] = path
+            self._data[row]['overlay'] = bool(path)
+            idx = self.index(row, 0)
+            self.dataChanged.emit(idx, idx, [Qt.ItemDataRole.ToolTipRole, Qt.ItemDataRole.CheckStateRole, Qt.ItemDataRole.UserRole + 1])
 
     def set_playing_row(self, row):
         old_row = self.playing_row
@@ -792,11 +817,108 @@ class PlaylistFilterProxyModel(QSortFilterProxyModel):
             return self.filterRegularExpression().match(filename).hasMatch()
         return False
 
+class PlaylistItemDelegate(QStyledItemDelegate):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.btn_size = 24
+        self.margin = 4
+
+    def paint(self, painter, option, index):
+        super().paint(painter, option, index)
+        
+        overlay_path = index.data(Qt.ItemDataRole.UserRole + 1)
+        
+        # 1. Obliczamy pozycje przycisków wyrównane do prawej
+        rect = option.rect
+        right_edge = rect.right() - self.margin
+        
+        # Przycisk ✖ (reset) - widoczny tylko gdy jest przypisana nakładka
+        reset_rect = QRect()
+        if overlay_path:
+            reset_rect = QRect(right_edge - self.btn_size, 
+                               rect.top() + (rect.height() - self.btn_size) // 2, 
+                               self.btn_size, self.btn_size)
+            right_edge -= (self.btn_size + self.margin)
+            
+        # Przycisk 📁 (wybór nakładki) - zawsze widoczny
+        folder_rect = QRect(right_edge - self.btn_size, 
+                            rect.top() + (rect.height() - self.btn_size) // 2, 
+                            self.btn_size, self.btn_size)
+                            
+        # 2. Rysowanie
+        painter.save()
+        
+        # Rysowanie ikony 📁
+        # Tło
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QColor("#444444"))
+        painter.drawRoundedRect(folder_rect, 3, 3)
+        # Tekst
+        painter.setPen(QColor("white"))
+        painter.drawText(folder_rect, Qt.AlignmentFlag.AlignCenter, "📁")
+        
+        # Rysowanie ikony ✖ jeśli potrzebna
+        if overlay_path:
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QColor("#883333"))
+            painter.drawRoundedRect(reset_rect, 3, 3)
+            painter.setPen(QColor("white"))
+            painter.drawText(reset_rect, Qt.AlignmentFlag.AlignCenter, "✖")
+            
+        painter.restore()
+
+    def editorEvent(self, event, model, option, index):
+        if event.type() == QEvent.Type.MouseButtonRelease and event.button() == Qt.MouseButton.LeftButton:
+            pos = event.position().toPoint()
+            
+            overlay_path = index.data(Qt.ItemDataRole.UserRole + 1)
+            rect = option.rect
+            right_edge = rect.right() - self.margin
+            
+            reset_rect = QRect()
+            if overlay_path:
+                reset_rect = QRect(right_edge - self.btn_size, 
+                                   rect.top() + (rect.height() - self.btn_size) // 2, 
+                                   self.btn_size, self.btn_size)
+                right_edge -= (self.btn_size + self.margin)
+                
+            folder_rect = QRect(right_edge - self.btn_size, 
+                                rect.top() + (rect.height() - self.btn_size) // 2, 
+                                self.btn_size, self.btn_size)
+
+            # Sprawdź kliknięcie ✖
+            if overlay_path and reset_rect.contains(pos):
+                if hasattr(model, 'sourceModel'):
+                    source_idx = model.mapToSource(index)
+                    model.sourceModel().set_overlay_path(source_idx.row(), None)
+                else:
+                    model.set_overlay_path(index.row(), None)
+                return True
+                
+            # Sprawdź kliknięcie 📁
+            if folder_rect.contains(pos):
+                parent_widget = option.widget
+                path, _ = QFileDialog.getOpenFileName(
+                    parent_widget, 
+                    "Wybierz nakładkę dla pliku", 
+                    "", 
+                    "Wszystkie obsługiwane (*.png *.jpg *.jpeg *.bmp *.gif *.mp4 *.mkv);;Obrazy (*.png *.jpg *.jpeg *.bmp *.gif);;Wideo (*.mp4 *.mkv);;Wszystkie (*.*)"
+                )
+                if path:
+                    if hasattr(model, 'sourceModel'):
+                        source_idx = model.mapToSource(index)
+                        model.sourceModel().set_overlay_path(source_idx.row(), path)
+                    else:
+                        model.set_overlay_path(index.row(), path)
+                return True
+                
+        return super().editorEvent(event, model, option, index)
+
 class App(QMainWindow):
     def __init__(self):
         super().__init__()
         self.settings = QSettings("ShowControl", "OperatorConsole")
-        self.base_title = "Show Control - Operator Console v0.3.5"
+        self.base_title = "Show Control - Operator Console v0.3.6"
         self.setWindowTitle(self.base_title)
         self.setMinimumSize(900, 700)
         
@@ -927,9 +1049,11 @@ class App(QMainWindow):
         
         self.playlist = PlaylistView(self)
         self.playlist.setModel(self.proxy_model)
+        self.playlist.setItemDelegate(PlaylistItemDelegate(self.playlist))
         self.playlist.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.playlist.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.playlist.setAlternatingRowColors(True)
+        self.playlist.viewport().setMouseTracking(True)
         
         # Konfiguracja Drag & Drop
         # DragDrop (nie InternalMove) pozwala akceptować pliki z zewnątrz (Eksplorator)
@@ -1112,7 +1236,7 @@ class App(QMainWindow):
         self.remote_checkbox.setChecked(True)
         self.remote_checkbox.stateChanged.connect(lambda: self.update_shortcuts())
         self.logo_audio_checkbox = QCheckBox()
-        self.logo_audio_checkbox.setChecked(True)
+        self.logo_audio_checkbox.setChecked(False)
         self.logo_audio_checkbox.stateChanged.connect(lambda: self.update_logo_visibility())
 
         # --- Theme selector ---
@@ -1396,6 +1520,7 @@ class App(QMainWindow):
         # Sprawdź globalny toggle oraz per-plik checkbox
         global_overlay = getattr(self, 'logo_overlay_btn', None) and self.logo_overlay_btn.isChecked()
         item_overlay = self.playlist_model.overlay_for_row(self.playlist_model.playing_row)
+        item_overlay_path = self.playlist_model.overlay_path_for_row(self.playlist_model.playing_row)
         
         show_audio_logo = False
         if path and is_audio_file(path) and self.logo_audio_checkbox.isChecked():
@@ -1405,16 +1530,52 @@ class App(QMainWindow):
         
         if show_overlay:
             self.projection_window.set_mode_audio()
+            # Ładujemy indywidualną nakładkę jeśli jest, inaczej przywracamy globalną
+            if item_overlay_path:
+                self._load_overlay_media(item_overlay_path)
+            else:
+                self.update_logo_media()
         else:
             self.projection_window.set_mode_video()
             
         self.projection_window.logo_viewer.show_logo = show_overlay
         self.projection_window.logo_viewer.update()
 
+    def _load_overlay_media(self, path):
+        if getattr(self, '_current_playing_logo_path', None) == path:
+            return  # Już załadowane, nie ma potrzeby restartować
+
+        self._current_playing_logo_path = path
+
+        if not path or not os.path.exists(path):
+            self.logo_player.stop()
+            self.projection_window.logo_viewer.logo_pixmap = None
+            self.projection_window.logo_viewer.update()
+            return
+
+        if is_image_file(path):
+            self.logo_player.stop()
+            self.projection_window.logo_viewer.logo_pixmap = QPixmap(path)
+            self.projection_window.logo_stacked_layout.setCurrentWidget(self.projection_window.logo_viewer)
+            self.projection_window.logo_viewer.update()
+        else:
+            self.projection_window.logo_viewer.logo_pixmap = None
+            self.projection_window.logo_stacked_layout.setCurrentWidget(self.projection_window.logo_video_widget)
+            media = self.vlc_instance.media_new(path)
+            media.add_option('input-repeat=65535')
+            self.logo_player.set_media(media)
+            self.logo_player.play()
+            self.logo_player.audio_set_volume(0)
+            self.logo_player.audio_set_mute(True)
+            self.logo_player.video_set_adjust_int(vlc.VideoAdjustOption.Enable, 1)
+            bri = self.brightness_slider.value() / 100.0
+            self.logo_player.video_set_adjust_float(vlc.VideoAdjustOption.Brightness, bri)
+            self.logo_player.video_set_adjust_float(vlc.VideoAdjustOption.Contrast, bri)
+
     def _on_playlist_overlay_changed(self, top_left, bottom_right, roles=None):
-        """Wywoływane gdy zmieni się CheckStateRole — od razu aktualizuje tryb projekcji
+        """Wywoływane gdy zmieni się CheckStateRole lub inne istotne dane — od razu aktualizuje tryb projekcji
         jeśli zmodyfikowany wiersz jest właśnie odtwarzany."""
-        if roles and Qt.ItemDataRole.CheckStateRole not in roles:
+        if roles and (Qt.ItemDataRole.CheckStateRole not in roles and Qt.ItemDataRole.UserRole + 1 not in roles):
             return
         playing = self.playlist_model.playing_row
         if top_left.row() <= playing <= bottom_right.row():
@@ -1596,6 +1757,12 @@ class App(QMainWindow):
 
     def update_logo_media(self):
         path = getattr(self, '_logo_path', None)
+        
+        if getattr(self, '_current_playing_logo_path', None) == path and path is not None:
+            return  # Już załadowane, nie ma potrzeby restartować
+            
+        self._current_playing_logo_path = path
+        
         if not path or not os.path.exists(path):
             self.logo_player.stop()
             self.projection_window.logo_viewer.logo_pixmap = None
@@ -1665,7 +1832,7 @@ class App(QMainWindow):
         if path:
             try:
                 files = [
-                    {"path": item['path'], "overlay": item.get('overlay', False)}
+                    {"path": item['path'], "overlay": item.get('overlay', False), "overlay_path": item.get('overlay_path')}
                     for item in self.playlist_model._data
                 ]
                 project = {
@@ -1689,10 +1856,6 @@ class App(QMainWindow):
             with open(path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
             
-            # Obsługa 3 formatów:
-            #   stary: lista ścieżek ["ścieżka", ...]
-            #   pośredni: {"files": ["ścieżka", ...], "logo": ...}
-            #   nowy:   {"files": [{"path": ..., "overlay": ...}, ...], "logo": ...}
             if isinstance(data, list):
                 files_raw = data
                 logo_path = None
@@ -1702,24 +1865,27 @@ class App(QMainWindow):
             
             self.playlist_model.clear()
             existing_files = []
-            overlay_map = {}  # path -> bool
+            overlay_map = {}  # path -> (bool, overlay_path)
             for item in files_raw:
                 if isinstance(item, str):
-                    p, overlay = item, False
+                    p, overlay, overlay_path = item, False, None
                 else:
                     p = item.get('path', '')
                     overlay = item.get('overlay', False)
+                    overlay_path = item.get('overlay_path', None)
                 if os.path.exists(p):
                     existing_files.append(p)
-                    overlay_map[p] = overlay
+                    overlay_map[p] = (overlay, overlay_path)
                 else:
                     print(f"Pominięto brakujący plik podczas wczytywania: {p}")
             
             self.playlist_model.add_files(existing_files)
             
-            # Przywróć flagę nakładki dla każdego wczytanego pliku
+            # Przywróć flagę i ścieżkę nakładki dla każdego wczytanego pliku
             for i, entry in enumerate(self.playlist_model._data):
-                entry['overlay'] = overlay_map.get(entry['path'], False)
+                ov_data = overlay_map.get(entry['path'], (False, None))
+                entry['overlay'] = ov_data[0]
+                entry['overlay_path'] = ov_data[1]
             if self.playlist_model._data:
                 self.playlist_model.dataChanged.emit(
                     self.playlist_model.index(0, 0),

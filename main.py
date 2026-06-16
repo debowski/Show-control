@@ -935,7 +935,7 @@ class App(QMainWindow):
 
 
         try:
-            self.vlc_instance = vlc.Instance('--no-xlib', '--quiet', '--aout=waveout', '--video-filter=adjust')
+            self.vlc_instance = vlc.Instance('--no-xlib', '--quiet', '--video-filter=adjust')
             self.media_player = self.vlc_instance.media_player_new()
             self.media_player.audio_set_volume(0) # Konfiguracja zabezpieczająca na start
             self.media_player.video_set_adjust_int(vlc.VideoAdjustOption.Enable, 1)

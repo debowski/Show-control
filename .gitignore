@@ -1,0 +1,54 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+build/
+dist/
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+.coverage
+.pytest_cache/
+htmlcov/
+
+# Virtual environments
+env/
+venv/
+.venv/
+
+# Editor directories and files
+.vscode/
+.idea/
+*.suo
+*.user
+*.userosscache
+*.sln
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+
+# Environment variables
+.env
+
+# Build artifacts (binaries) - usually created by PyInstaller
+# If you want to include a built .exe in the repo, remove the following lines
+*.exe
+
+# Release packages
+*.zip
+*.tar.gz
+
+# Docs build
+docs/_build/

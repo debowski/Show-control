@@ -1,8 +1,8 @@
-# Show Control — Operator Console v0.3
+# Show Control — Operator Console v0.3.6
 
 Profesjonalna aplikacja do zarządzania projekcją multimediów (wideo, audio i grafika) podczas wydarzeń na żywo, pokazów, prezentacji i koncertów. Program umożliwia operatorowi sterowanie listą odtwarzania na jednym ekranie (**konsola operatora**), podczas gdy obraz właściwy wyświetlany jest na drugim monitorze lub projektorze (**okno projekcji**).
 
-![Widok panelu operatora v0.3](aplikacja_v03b.png)
+![Operator panel screenshot v0.3.6](app036.png)
 
 ---
 

@@ -25,8 +25,10 @@ jobs:
         pip install -r requirements.txt
 
     - name: Kompilacja PyInstallerem
+      shell: pwsh
       run: |
-        pyinstaller --noconfirm --onedir --windowed main.py
+        # Using the exact command from kompilowanie.txt to preserve icon and excluded modules
+        python -m PyInstaller main.py -w --onedir --icon=ikona_sc.ico --clean --exclude-module PyQt6.QtWebEngine --exclude-module PyQt6.QtQml --exclude-module PyQt6.QtNetwork --exclude-module PyQt6.QtPdf --exclude-module PyQt6.QtMultimedia --exclude-module PyQt6.QtMultimediaWidgets --exclude-module PyQt6.QtSql --exclude-module PyQt6.QtXml --exclude-module PyQt6.QtBluetooth --exclude-module PyQt6.QtPositioning --exclude-module PyQt6.QtSensors
 
     - name: Kopiowanie pliku shortcuts.json do folderu dist
       run: |
@@ -35,11 +37,16 @@ jobs:
     - name: Pakowanie folderu wyjściowego do ZIP
       shell: pwsh
       run: |
-        Compress-Archive -Path dist/main -DestinationPath show-control-windows.zip
+        # Create a zip containing the contents of dist/main
+        if (Test-Path show-control-windows.zip) { Remove-Item show-control-windows.zip -Force }
+        Compress-Archive -Path (Join-Path $PWD 'dist\main\*') -DestinationPath show-control-windows.zip
 
-    - name: Tworzenie GitHub Release i Upload pliku ZIP
+    - name: Tworzenie GitHub Release i Upload plików
       uses: softprops/action-gh-release@v2
       with:
-        files: show-control-windows.zip
+        # upload both the ZIP and the built exe
+        files: |
+          show-control-windows.zip
+          dist/main/main.exe
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

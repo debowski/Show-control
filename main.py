@@ -1,4 +1,4 @@
-# Show-control Version 0.3.6
+# Show-control Version 0.3.7
 # Copyright (C) 2026 Piotr Dębowski
 #
 # Professional Broadcast Edition
@@ -25,8 +25,7 @@ logging.basicConfig(level=logging.ERROR, format='%(asctime)s - %(levelname)s - %
 try:
     import vlc
 except ImportError:
-    print("Błąd: Biblioteka python-vlc nie jest zainstalowana.")
-    print("Zainstaluj ją używając: pip install python-vlc")
+    print(TRANSLATIONS[DEFAULT_LANGUAGE]['vlc_missing'])
     sys.exit(1)
 
 MEDIA_EXTENSIONS = ('.mp4', '.mp3', '.mkv', '.jpg', '.jpeg', '.png', '.bmp', '.gif', '.wav', '.flac', '.aac', '.ogg', '.m4a')
@@ -35,6 +34,101 @@ IMAGE_EXTENSIONS = ('.jpg', '.jpeg', '.png', '.bmp', '.gif')
 PROJECT_FILE_FILTER = "JSON (*.json)"
 MEDIA_FILE_FILTER = "Media (*.mp4 *.mp3 *.mkv *.jpg *.png);;Wszystkie (*.*)"
 EMPTY_TIME_LABEL = "00:00 / 00:00 (Pozostało: -00:00)"
+
+# Prosty mechanizm tłumaczeń (polski / angielski)
+DEFAULT_LANGUAGE = "pl"
+TRANSLATIONS = {
+    "pl": {
+        "projection_window_title": "Projekcja - Odtwarzacz",
+        "add_files": "✚ Dodaj pliki",
+        "add_files_tooltip": "Dodaj nowe pliki do listy",
+        "load_project": "📂 Wczytaj Projekt",
+        "load_project_tooltip": "Wczytaj zapisaną listę plików",
+        "save_project": "💾 Zapisz Projekt",
+        "save_project_tooltip": "Zapisz aktualną listę",
+        "select_overlay": "📁 Wybierz plik nakładki",
+        "select_overlay_tooltip": "Wybierz obrazek lub grafikę do wyświetlania",
+        "toggle_projection": "👁 Ukryj Okno",
+        "toggle_projection_tooltip": "Ukryj lub pokaż okno projekcji",
+        "search_placeholder": "🔍 Wyszukaj utwór po tytule...",
+        "playback_control": "Kontrola odtwarzania",
+        "view_effects": "Widok i Efekty",
+        "control": "Sterowanie",
+        "settings": "Ustawienia",
+        "volume": "🔊 Głośność",
+        "fade": "⏱ Fade",
+        "brightness": "💡 Jasność",
+        "image_speed": "⏱ Prędkość grafiki",
+        "remote_mode": "Tryb Pilota (L/P)",
+        "autoplay": "Autoodtwarzanie",
+        "theme": "🎨 Motyw",
+        "remove_short": "✖ Usuń",
+        "previous_short": "⏮ Poprzedni",
+        "play_short": "▶ PLAY",
+        "pause_short": "⏸ PAUSE",
+        "stop_short": "⏹ STOP",
+        "next_short": "Następny ⏭",
+        "fade_out": "✨ Fade Out",
+        "fullscreen": "📺 Pełny Ekran",
+        "image_for_audio": "Obrazek dla Audio",
+        "overlay_on_image": "Nakładka na obraz",
+        "language": "Język",
+        "add_media_dialog": "Dodaj multimedia",
+        "select_overlay_dialog": "Wybierz nakładkę",
+        "save_dialog": "Zapisz",
+        "load_dialog": "Wczytaj",
+        "file_error_title": "Błąd pliku",
+        "file_missing": "Plik nie istnieje lub został przeniesiony:\n{path}",
+        "save_error_title": "Błąd zapisu",
+        "load_error_title": "Błąd odczytu",
+        "vlc_missing": "Błąd: Biblioteka python-vlc nie jest zainstalowana. Zainstaluj ją używając: pip install python-vlc",
+    },
+    "en": {
+        "projection_window_title": "Projection - Player",
+        "add_files": "✚ Add files",
+        "add_files_tooltip": "Add new files to the list",
+        "load_project": "📂 Load Project",
+        "load_project_tooltip": "Load a saved file list",
+        "save_project": "💾 Save Project",
+        "save_project_tooltip": "Save the current list",
+        "select_overlay": "📁 Select overlay file",
+        "select_overlay_tooltip": "Choose an image or graphic to display",
+        "toggle_projection": "👁 Toggle Window",
+        "toggle_projection_tooltip": "Hide or show the projection window",
+        "search_placeholder": "🔍 Search track by title...",
+        "playback_control": "Playback Control",
+        "view_effects": "View & Effects",
+        "control": "Control",
+        "settings": "Settings",
+        "volume": "🔊 Volume",
+        "fade": "⏱ Fade",
+        "brightness": "💡 Brightness",
+        "image_speed": "⏱ Image Speed",
+        "remote_mode": "Remote Mode (L/P)",
+        "autoplay": "Autoplay",
+        "theme": "🎨 Theme",
+        "remove_short": "✖ Remove",
+        "previous_short": "⏮ Previous",
+        "play_short": "▶ PLAY",
+        "pause_short": "⏸ PAUSE",
+        "stop_short": "⏹ STOP",
+        "next_short": "Next ⏭",
+        "fade_out": "✨ Fade Out",
+        "fullscreen": "📺 Fullscreen",
+        "image_for_audio": "Image for Audio",
+        "overlay_on_image": "Overlay on image",
+        "language": "Language",
+        "add_media_dialog": "Add media",
+        "select_overlay_dialog": "Select overlay",
+        "save_dialog": "Save",
+        "load_dialog": "Load",
+        "file_error_title": "File Error",
+        "file_missing": "File does not exist or has been moved:\n{path}",
+        "save_error_title": "Save Error",
+        "load_error_title": "Load Error",
+        "vlc_missing": "Error: python-vlc library is not installed. Install it using: pip install python-vlc",
+    }
+}
 
 KEYBOARD_SHORTCUTS = {
     "search": {"keys": [Qt.Key.Key_F3]},
@@ -898,12 +992,18 @@ class PlaylistItemDelegate(QStyledItemDelegate):
             # Sprawdź kliknięcie 📁
             if folder_rect.contains(pos):
                 parent_widget = option.widget
-                path, _ = QFileDialog.getOpenFileName(
-                    parent_widget, 
-                    "Wybierz nakładkę dla pliku", 
-                    "", 
-                    "Wszystkie obsługiwane (*.png *.jpg *.jpeg *.bmp *.gif *.mp4 *.mkv);;Obrazy (*.png *.jpg *.jpeg *.bmp *.gif);;Wideo (*.mp4 *.mkv);;Wszystkie (*.*)"
-                )
+                # Use parent's translation if available, otherwise fallback
+                dialog_title = "Wybierz nakładkę dla pliku"
+                try:
+                    if hasattr(parent_widget, 'get_t'):
+                        dialog_title = parent_widget.get_t('select_overlay_dialog')
+                    else:
+                        dialog_title = TRANSLATIONS[DEFAULT_LANGUAGE]['select_overlay_dialog']
+                except Exception:
+                    dialog_title = TRANSLATIONS[DEFAULT_LANGUAGE]['select_overlay_dialog']
+
+                filter_text = "Wszystkie obsługiwane (*.png *.jpg *.jpeg *.bmp *.gif *.mp4 *.mkv);;Obrazy (*.png *.jpg *.jpeg *.bmp *.gif);;Wideo (*.mp4 *.mkv);;Wszystkie (*.*)"
+                path, _ = QFileDialog.getOpenFileName(parent_widget, dialog_title, "", filter_text)
                 if path:
                     if hasattr(model, 'sourceModel'):
                         source_idx = model.mapToSource(index)
@@ -918,7 +1018,7 @@ class App(QMainWindow):
     def __init__(self):
         super().__init__()
         self.settings = QSettings("ShowControl", "OperatorConsole")
-        self.base_title = "Show Control - Operator Console v0.3.6"
+        self.base_title = "Show Control - Operator Console v0.7"
         self.setWindowTitle(self.base_title)
         self.setMinimumSize(900, 700)
         
@@ -943,7 +1043,7 @@ class App(QMainWindow):
             self.logo_player.audio_set_volume(0)
             self.logo_player.video_set_adjust_int(vlc.VideoAdjustOption.Enable, 1)
         except Exception as e:
-            QMessageBox.critical(self, "VLC Error", f"Błąd VLC: {e}")
+            QMessageBox.critical(self, "VLC Error", f"VLC Error: {e}")
             sys.exit(1)
 
         self.projection_window = ProjectionWindow()
@@ -1217,7 +1317,11 @@ class App(QMainWindow):
         
         settings_group = QGroupBox("Ustawienia")
         set_layout = QVBoxLayout(settings_group)
-        self.autoplay_checkbox = QCheckBox("Autoodtwarzanie")
+        # Language selector will be added here; default set from settings
+        self.language = self.settings.value("language", DEFAULT_LANGUAGE)
+
+        self.autoplay_checkbox = QCheckBox()
+        # we'll set texts after building UI via apply_translations()
         self.autoplay_checkbox.stateChanged.connect(self._on_autoplay_changed)
 
         image_speed_layout = QHBoxLayout()
@@ -1241,7 +1345,7 @@ class App(QMainWindow):
 
         # --- Theme selector ---
         theme_row = QHBoxLayout()
-        theme_label = QLabel("🎨 Motyw")
+        self.theme_label = QLabel()
         self.theme_combo = QComboBox()
         for key in THEME_KEYS:
             self.theme_combo.addItem(THEMES[key]["name"], key)
@@ -1249,7 +1353,7 @@ class App(QMainWindow):
         saved_idx = THEME_KEYS.index(saved_theme) if saved_theme in THEME_KEYS else 0
         self.theme_combo.setCurrentIndex(saved_idx)
         self.theme_combo.currentIndexChanged.connect(self._on_theme_changed)
-        theme_row.addWidget(theme_label)
+        theme_row.addWidget(self.theme_label)
         theme_row.addWidget(self.theme_combo, stretch=1)
 
         set_layout.addWidget(self.autoplay_checkbox)
@@ -1257,6 +1361,20 @@ class App(QMainWindow):
         set_layout.addWidget(self.remote_checkbox)
         set_layout.addWidget(self.logo_audio_checkbox)
         set_layout.addLayout(theme_row)
+        # --- Language selector ---
+        lang_row = QHBoxLayout()
+        self.lang_label = QLabel()
+        self.lang_combo = QComboBox()
+        # add languages by key and display name
+        self.lang_combo.addItem("Polski", "pl")
+        self.lang_combo.addItem("English", "en")
+        # set current
+        idx = 0 if self.language == "pl" else 1
+        self.lang_combo.setCurrentIndex(idx)
+        self.lang_combo.currentIndexChanged.connect(self._on_language_changed)
+        lang_row.addWidget(self.lang_label)
+        lang_row.addWidget(self.lang_combo, stretch=1)
+        set_layout.addLayout(lang_row)
         set_layout.addStretch()
         
         bottom_panel.addWidget(view_group, stretch=1)
@@ -1272,6 +1390,8 @@ class App(QMainWindow):
         )
         self.update_shortcut_descriptions()
         self.init_shortcuts()
+        # Apply translations at the end of UI init so all widgets exist
+        self.apply_translations()
         self.status_timer = QTimer(self)
         self.status_timer.timeout.connect(self.check_player_status)
         self.status_timer.start(500)
@@ -1304,6 +1424,102 @@ class App(QMainWindow):
             for key in KEYBOARD_SHORTCUTS[name]["keys"]:
                 QShortcut(QKeySequence(key), self).activated.connect(callback)
         self.update_shortcuts()
+
+    def get_t(self, key, **kwargs):
+        """Return translated string for current language, formatting with kwargs if provided."""
+        lang = getattr(self, 'language', DEFAULT_LANGUAGE)
+        table = TRANSLATIONS.get(lang, TRANSLATIONS[DEFAULT_LANGUAGE])
+        s = table.get(key, TRANSLATIONS[DEFAULT_LANGUAGE].get(key, key))
+        try:
+            return s.format(**kwargs)
+        except Exception:
+            return s
+
+    def apply_translations(self):
+        """Apply translations to visible UI widgets. Safe to call multiple times."""
+        # Projection window title
+        self.projection_window.setWindowTitle(self.get_t('projection_window_title'))
+
+        # Top bar
+        self.add_btn.setText(self.get_t('add_files'))
+        self.add_btn.setToolTip(self.get_t('add_files_tooltip'))
+        self.load_proj_btn.setText(self.get_t('load_project'))
+        self.load_proj_btn.setToolTip(self.get_t('load_project_tooltip'))
+        self.save_proj_btn.setText(self.get_t('save_project'))
+        self.save_proj_btn.setToolTip(self.get_t('save_project_tooltip'))
+        self.logo_btn.setText(self.get_t('select_overlay'))
+        self.logo_btn.setToolTip(self.get_t('select_overlay_tooltip'))
+        self.window_btn.setText(self.get_t('toggle_projection'))
+        self.window_btn.setToolTip(self.get_t('toggle_projection_tooltip'))
+
+        # Search
+        self.search_input.setPlaceholderText(self.get_t('search_placeholder'))
+
+        # Update QGroupBox titles (match known Polish/English originals defensively)
+        for gb in self.findChildren(QGroupBox):
+            t = gb.title()
+            if t in ("Kontrola odtwarzania", "Playback Control", ""):
+                gb.setTitle(self.get_t('playback_control'))
+            elif t in ("Widok i Efekty", "View & Effects", ""):
+                gb.setTitle(self.get_t('view_effects'))
+            elif t in ("Sterowanie", "Control", ""):
+                gb.setTitle(self.get_t('control'))
+            elif t in ("Ustawienia", "Settings", ""):
+                gb.setTitle(self.get_t('settings'))
+
+        # Update QLabel texts for small labels (volume, fade, brightness, image speed, theme, language)
+        for lbl in self.findChildren(QLabel):
+            txt = lbl.text()
+            if "Głośność" in txt or "Volume" in txt:
+                lbl.setText(self.get_t('volume'))
+            elif "Jasność" in txt or "Brightness" in txt:
+                lbl.setText(self.get_t('brightness'))
+            elif "Prędkość grafiki" in txt or "Image Speed" in txt:
+                lbl.setText(self.get_t('image_speed'))
+            elif "Fade" in txt and ("⏱" in txt or "Fade" in txt):
+                lbl.setText(self.get_t('fade'))
+            elif txt.strip() in ("🎨 Motyw", "🎨 Theme"):
+                lbl.setText(self.get_t('theme'))
+            # language label: original was empty — if detected placeholder, set 'Language' under settings
+            elif txt.strip() in ("", "Ustawienia", "Settings"):
+                # careful: avoid overwriting groupbox titles; only set if label appears in settings layout
+                parent = lbl.parent()
+                settings_group_in = False
+                if parent:
+                    settings_group_in = any(isinstance(w, QGroupBox) and w.title() == self.get_t('settings') for w in parent.findChildren(QGroupBox))
+                if settings_group_in:
+                    lbl.setText(self.get_t('settings'))
+
+        # Settings group labels
+        # autoplay checkbox
+        self.autoplay_checkbox.setText(self.get_t('autoplay'))
+        # remote checkbox
+        self.remote_checkbox.setText(self.get_t('remote_mode'))
+        # logo audio checkbox
+        self.logo_audio_checkbox.setText(self.get_t('image_for_audio'))
+        # theme label: set via translations
+        try:
+            self.theme_label.setText(self.get_t('theme'))
+        except Exception:
+            pass
+
+        # language row
+        try:
+            # set language label text
+            self.lang_label.setText(self.get_t('language'))
+        except Exception:
+            pass
+
+        # Update some button short texts that depend on shortcuts
+        self.update_shortcut_descriptions()
+
+    def _on_language_changed(self, index):
+        key = self.lang_combo.currentData()
+        if not key:
+            return
+        self.language = key
+        self.settings.setValue('language', key)
+        self.apply_translations()
 
     def setup_button_feedback(self, *buttons):
         for button in buttons:
@@ -1338,29 +1554,29 @@ class App(QMainWindow):
         prev_shortcut = navigation_shortcut("previous", remote_enabled)
         next_shortcut = navigation_shortcut("next", remote_enabled)
 
-        self.remove_btn.setText(f"✖ Usuń ({shortcut_label('remove')})")
-        self.remove_btn.setToolTip(f"Usuń zaznaczone pliki ({shortcut_label('remove', tooltip=True)})")
-        self.save_proj_btn.setText(f"💾 Zapisz Projekt ({shortcut_label('save_project')})")
-        self.save_proj_btn.setToolTip(f"Zapisz aktualną listę ({shortcut_label('save_project')})")
-        self.search_input.setPlaceholderText(f"🔍 Wyszukaj utwór po tytule... ({shortcut_label('search')})")
+        self.remove_btn.setText(f"{self.get_t('remove_short')} ({shortcut_label('remove')})")
+        self.remove_btn.setToolTip(f"{self.get_t('remove_short')} ({shortcut_label('remove', tooltip=True)})")
+        self.save_proj_btn.setText(f"{self.get_t('save_project')} ({shortcut_label('save_project')})")
+        self.save_proj_btn.setToolTip(f"{self.get_t('save_project_tooltip')} ({shortcut_label('save_project')})")
+        self.search_input.setPlaceholderText(f"{self.get_t('search_placeholder')} ({shortcut_label('search')})")
 
-        self.prev_btn.setText(f"⏮ Poprzedni ({shortcut_label('previous', extra_keys=[prev_shortcut])})")
-        self.prev_btn.setToolTip(f"Poprzedni plik ({shortcut_label('previous', extra_keys=[prev_shortcut], separator=' / ', tooltip=True)})")
-        self.play_btn.setText(f"▶ PLAY ({shortcut_label('play', groups=('keys', 'playlist_keys'))})")
-        self.play_btn.setToolTip(f"Odtwórz ({shortcut_label('play')})")
-        self.pause_btn.setText(f"⏸ PAUSE ({shortcut_label('pause')})")
-        self.pause_btn.setToolTip(f"Pauza / Wznów ({shortcut_label('pause')})")
-        self.stop_btn.setText(f"⏹ STOP ({shortcut_label('stop')})")
-        self.stop_btn.setToolTip(f"Zatrzymaj odtwarzanie ({shortcut_label('stop')})")
-        self.next_btn.setText(f"Następny ⏭ ({shortcut_label('next', extra_keys=[next_shortcut])})")
-        self.next_btn.setToolTip(f"Następny plik ({shortcut_label('next', extra_keys=[next_shortcut], separator=' / ', tooltip=True)})")
+        self.prev_btn.setText(f"{self.get_t('previous_short')} ({shortcut_label('previous', extra_keys=[prev_shortcut])})")
+        self.prev_btn.setToolTip(f"{self.get_t('previous_short')} ({shortcut_label('previous', extra_keys=[prev_shortcut], separator=' / ', tooltip=True)})")
+        self.play_btn.setText(f"{self.get_t('play_short')} ({shortcut_label('play', groups=('keys', 'playlist_keys'))})")
+        self.play_btn.setToolTip(f"{self.get_t('play_short')} ({shortcut_label('play')})")
+        self.pause_btn.setText(f"{self.get_t('pause_short')} ({shortcut_label('pause')})")
+        self.pause_btn.setToolTip(f"{self.get_t('pause_short')} ({shortcut_label('pause')})")
+        self.stop_btn.setText(f"{self.get_t('stop_short')} ({shortcut_label('stop')})")
+        self.stop_btn.setToolTip(f"{self.get_t('stop_short')} ({shortcut_label('stop')})")
+        self.next_btn.setText(f"{self.get_t('next_short')} ({shortcut_label('next', extra_keys=[next_shortcut])})")
+        self.next_btn.setToolTip(f"{self.get_t('next_short')} ({shortcut_label('next', extra_keys=[next_shortcut], separator=' / ', tooltip=True)})")
 
-        self.fade_btn.setText(f"✨ Fade Out ({shortcut_label('fade_out')})")
-        self.fade_btn.setToolTip(f"Płynne wyciszenie i ściemnienie ({shortcut_label('fade_out')})")
-        self.fullscreen_btn.setText(f"📺 Pełny Ekran ({shortcut_label('fullscreen')})")
-        self.fullscreen_btn.setToolTip(f"Przełącz pełny ekran ({shortcut_label('fullscreen')})")
-        self.logo_audio_checkbox.setText(f"Obrazek dla Audio ({shortcut_label('logo_audio')})")
-        self.logo_overlay_btn.setText(f"Nakładka na obraz ({shortcut_label('logo_overlay')})")
+        self.fade_btn.setText(f"{self.get_t('fade_out')} ({shortcut_label('fade_out')})")
+        self.fade_btn.setToolTip(f"{self.get_t('fade_out')} ({shortcut_label('fade_out')})")
+        self.fullscreen_btn.setText(f"{self.get_t('fullscreen')} ({shortcut_label('fullscreen')})")
+        self.fullscreen_btn.setToolTip(f"{self.get_t('fullscreen')} ({shortcut_label('fullscreen')})")
+        self.logo_audio_checkbox.setText(f"{self.get_t('image_for_audio')} ({shortcut_label('logo_audio')})")
+        self.logo_overlay_btn.setText(f"{self.get_t('overlay_on_image')} ({shortcut_label('logo_overlay')})")
 
     def update_shortcuts(self):
         remote_enabled = self.remote_checkbox.isChecked()
@@ -1453,7 +1669,8 @@ class App(QMainWindow):
             logging.error("Błąd w check_player_status:", exc_info=True)
 
     def add_files(self):
-        files, _ = QFileDialog.getOpenFileNames(self, "Dodaj multimedia", "", MEDIA_FILE_FILTER)
+        title = self.get_t('add_media_dialog')
+        files, _ = QFileDialog.getOpenFileNames(self, title, "", MEDIA_FILE_FILTER)
         self.playlist_model.add_files(files)
 
     def remove_file(self):
@@ -1505,7 +1722,7 @@ class App(QMainWindow):
         path = self.playlist_model.data(source_idx, Qt.ItemDataRole.UserRole)
         
         if not path or not os.path.exists(path):
-            QMessageBox.warning(self, "Błąd pliku", f"Plik nie istnieje lub został przeniesiony:\n{path}")
+            QMessageBox.warning(self, self.get_t('file_error_title'), self.get_t('file_missing', path=path))
             return
             
         self._stop_image_autoplay_timer()
@@ -1562,6 +1779,8 @@ class App(QMainWindow):
             self.projection_window.logo_viewer.logo_pixmap = None
             self.projection_window.logo_stacked_layout.setCurrentWidget(self.projection_window.logo_video_widget)
             media = self.vlc_instance.media_new(path)
+            # Ensure overlay media is played without audio
+            media.add_option('no-audio')
             media.add_option('input-repeat=65535')
             self.logo_player.set_media(media)
             self.logo_player.play()
@@ -1749,8 +1968,8 @@ class App(QMainWindow):
             self.play_media()
 
     def select_logo(self):
-        filter_str = "Wszystkie obsługiwane (*.png *.jpg *.jpeg *.bmp *.gif *.mp4 *.mkv);;Obrazy (*.png *.jpg *.jpeg *.bmp *.gif);;Wideo (*.mp4 *.mkv);;Wszystkie (*.*)"
-        path, _ = QFileDialog.getOpenFileName(self, "Wybierz nakładkę", "", filter_str)
+        filter_str = self.get_t('select_overlay_dialog') + " (*.png *.jpg *.jpeg *.bmp *.gif *.mp4 *.mkv);;" + self.get_t('select_overlay_dialog') + " (*.png *.jpg *.jpeg *.bmp *.gif);;" + self.get_t('select_overlay_dialog') + " (*.mp4 *.mkv);;Wszystkie (*.*)"
+        path, _ = QFileDialog.getOpenFileName(self, self.get_t('select_overlay_dialog'), "", filter_str)
         if path:
             self._logo_path = path
             self.update_logo_media()
@@ -1778,6 +1997,8 @@ class App(QMainWindow):
             self.projection_window.logo_viewer.logo_pixmap = None
             self.projection_window.logo_stacked_layout.setCurrentWidget(self.projection_window.logo_video_widget)
             media = self.vlc_instance.media_new(path)
+            # Ensure overlay media is played without audio
+            media.add_option('no-audio')
             media.add_option('input-repeat=65535')
             self.logo_player.set_media(media)
             self.logo_player.play()
@@ -1828,7 +2049,7 @@ class App(QMainWindow):
         self.proxy_model.setFilterRegularExpression(text)
 
     def save_project(self):
-        path, _ = QFileDialog.getSaveFileName(self, "Zapisz", "", PROJECT_FILE_FILTER)
+        path, _ = QFileDialog.getSaveFileName(self, self.get_t('save_dialog'), "", PROJECT_FILE_FILTER)
         if path:
             try:
                 files = [
@@ -1844,10 +2065,10 @@ class App(QMainWindow):
                 self.settings.setValue("last_project", path)
                 self.update_window_title(path)
             except Exception as e:
-                QMessageBox.critical(self, "Błąd zapisu", f"Nie udało się zapisać projektu:\n{e}")
+                QMessageBox.critical(self, self.get_t('save_error_title'), f"Nie udało się zapisać projektu:\n{e}")
 
     def load_project(self):
-        path, _ = QFileDialog.getOpenFileName(self, "Wczytaj", "", PROJECT_FILE_FILTER)
+        path, _ = QFileDialog.getOpenFileName(self, self.get_t('load_dialog'), "", PROJECT_FILE_FILTER)
         if path:
             self._load_project_file(path)
             
@@ -1899,7 +2120,7 @@ class App(QMainWindow):
             self.settings.setValue("last_project", path)
             self.update_window_title(path)
         except Exception as e:
-            QMessageBox.critical(self, "Błąd odczytu", f"Nie udało się wczytać projektu:\n{e}")
+            QMessageBox.critical(self, self.get_t('load_error_title'), f"Nie udało się wczytać projektu:\n{e}")
 
     def _on_theme_changed(self, _index):
         key = self.theme_combo.currentData()

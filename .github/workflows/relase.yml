@@ -30,9 +30,20 @@ jobs:
         # Using the exact command from kompilowanie.txt to preserve icon and excluded modules
         python -m PyInstaller main.py -w --onedir --icon=ikona_sc.ico --clean --exclude-module PyQt6.QtWebEngine --exclude-module PyQt6.QtQml --exclude-module PyQt6.QtNetwork --exclude-module PyQt6.QtPdf --exclude-module PyQt6.QtMultimedia --exclude-module PyQt6.QtMultimediaWidgets --exclude-module PyQt6.QtSql --exclude-module PyQt6.QtXml --exclude-module PyQt6.QtBluetooth --exclude-module PyQt6.QtPositioning --exclude-module PyQt6.QtSensors
 
-    - name: Kopiowanie pliku shortcuts.json do folderu dist
+    - name: Kopiowanie pliku shortcuts.json i ikon do folderu dist
+      shell: pwsh
       run: |
-        xcopy shortcuts.json dist\main\ /Y
+        # Copy shortcuts.json if it exists
+        if (Test-Path 'shortcuts.json') {
+          Copy-Item 'shortcuts.json' -Destination 'dist\main\' -Force
+        }
+        # Copy icons if they exist so they are included inside the zip
+        if (Test-Path 'ikona_sc.ico') {
+          Copy-Item 'ikona_sc.ico' -Destination 'dist\main\' -Force
+        }
+        if (Test-Path 'ikona_bw.ico') {
+          Copy-Item 'ikona_bw.ico' -Destination 'dist\main\' -Force
+        }
 
     - name: Pakowanie folderu wyjściowego do ZIP
       shell: pwsh
@@ -41,12 +52,11 @@ jobs:
         if (Test-Path show-control-windows.zip) { Remove-Item show-control-windows.zip -Force }
         Compress-Archive -Path (Join-Path $PWD 'dist\main\*') -DestinationPath show-control-windows.zip
 
-    - name: Tworzenie GitHub Release i Upload plików
+    - name: Tworzenie GitHub Release i Upload pliku ZIP
       uses: softprops/action-gh-release@v2
       with:
-        # upload both the ZIP and the built exe
+        # upload only the ZIP which contains main.exe and icons
         files: |
           show-control-windows.zip
-          dist/main/main.exe
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

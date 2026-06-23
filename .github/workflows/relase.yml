@@ -48,9 +48,12 @@ jobs:
     - name: Copy shortcuts.json and icons into dist/main
       shell: pwsh
       run: |
+        # ensure _internal directory exists for icons
+        if (-not (Test-Path 'dist\main\_internal')) { New-Item -ItemType Directory -Path 'dist\main\_internal' | Out-Null }
         if (Test-Path 'shortcuts.json') { Copy-Item 'shortcuts.json' -Destination 'dist\main\' -Force }
-        if (Test-Path 'ikona_sc.ico') { Copy-Item 'ikona_sc.ico' -Destination 'dist\main\' -Force }
-        if (Test-Path 'ikona_bw.ico') { Copy-Item 'ikona_bw.ico' -Destination 'dist\main\' -Force }
+        # copy icons into the _internal folder
+        if (Test-Path 'ikona_sc.ico') { Copy-Item 'ikona_sc.ico' -Destination 'dist\main\_internal\' -Force }
+        if (Test-Path 'ikona_bw.ico') { Copy-Item 'ikona_bw.ico' -Destination 'dist\main\_internal\' -Force }
 
     - name: Pack dist/main into ZIP
       shell: pwsh

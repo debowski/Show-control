@@ -40,7 +40,7 @@ dla operatora idą jako patch, bo operator aktualizuje ręcznie i nie ma czego
 - **Migracja:** pozycje z `"overlay": true` i bez `overlay_path` tracą flagę
   przy wczytaniu, z jednorazowym komunikatem.
 
-## [0.7.2] — planowane
+## [0.7.2] — 2026-11-13
 
 Trzy commity przed rozpoczęciem refaktoru.
 

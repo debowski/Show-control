@@ -1,0 +1,21 @@
+# Tabela [project] celowo nieobecna do fazy 1 — pakiet showcontrol/ jeszcze
+# nie istnieje, a ten plik konfiguruje wyłącznie narzędzia.
+# Zobacz docs/refactor-plan.md, faza 1.
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+extend-exclude = ["build", "dist", "__pycache__"]
+
+[tool.ruff.lint]
+# Tylko realne błędy: pycodestyle (E4/E7/E9) + pyflakes (F).
+# Formatowanie i porządkowanie importów są wyłączone do fazy 7, żeby nie
+# mieszać diffu formatowania z cięciem modułów.
+# Zobacz docs/refactor-plan.md, zasada 5.
+select = ["E4", "E7", "E9", "F"]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-q"

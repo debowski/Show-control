@@ -1,4 +1,4 @@
-# Show-control Version 0.3.7
+# Show-control Version 0.4.3
 # Copyright (C) 2026 Piotr Dębowski
 #
 # Professional Broadcast Edition

@@ -1,202 +1,303 @@
-# Show Control — Operator Console v0.3.6
+# Show Control – Operator Console
 
-Profesjonalna aplikacja do zarządzania projekcją multimediów (wideo, audio i grafika) podczas wydarzeń na żywo, pokazów, prezentacji i koncertów. Program umożliwia operatorowi sterowanie listą odtwarzania na jednym ekranie (**konsola operatora**), podczas gdy obraz właściwy wyświetlany jest na drugim monitorze lub projektorze (**okno projekcji**).
+**A professional dual-screen multimedia playback application for live events, presentations, performances and broadcast environments.**
 
-![Operator panel screenshot v0.3.6](app036.png)
+[![Python](https://img.shields.io/badge/Python-3.10%2B-blue?logo=python&logoColor=white)](https://www.python.org/)
+[![PyQt6](https://img.shields.io/badge/GUI-PyQt6-green)](https://www.riverbankcomputing.com/software/pyqt/)
+[![VLC](https://img.shields.io/badge/Playback-LibVLC-orange?logo=vlc&logoColor=white)](https://www.videolan.org/vlc/)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 
----
+Show Control is a desktop application designed for operators who need reliable and convenient control over multimedia playback during live events.
 
-## Funkcje i opis działania aplikacji
+It separates the operator interface from the audience-facing projection screen, allowing you to manage playlists, control playback, adjust audio and video settings, and switch between media and visual overlays without exposing the control panel to your audience.
 
-### 🖥️ Dwuekranowy tryb pracy
-Aplikacja automatycznie wykrywa drugi monitor i otwiera na nim **okno projekcji** w trybie pełnoekranowym. Operator steruje całością z **panelu konsoli** na pierwszym ekranie. Oba okna są całkowicie niezależne, co eliminuje rozpraszanie widza interfejsem sterowania. Dwukrotne kliknięcie okna projekcji przełącza je między trybem pełnoekranowym a okienkowym.
+**One screen for the operator. One screen for the audience. Complete control over your show.**
 
-### 🎬 Silnik odtwarzania — LibVLC
-Rdzeń odtwarzania oparty na bibliotece **python-vlc** (silnik LibVLC), co zapewnia:
-- Szerokie wsparcie formatów: wideo (`MP4`, `MKV`, `AVI`, `MOV` i inne), audio (`MP3`, `WAV`, `FLAC`, `AAC`, `OGG`, `M4A`) oraz grafika (`JPG`, `PNG`, `BMP`, `GIF`).
-- Płynne odtwarzanie z wyjściem Direct3D11 (Windows), minimalizujące obciążenie procesora.
-- Wyjście audio przez WaveOut, bez charakterystycznego „pukania" przy wyciszaniu.
-- Dwa niezależne odtwarzacze VLC: **główny** (treść listy) i **nakładki** (logo/wideo w tle).
+## Overview
 
-### 🎞️ Płynne przejścia — Fade Out
-Zatrzymanie materiału realizowane jest z **efektem Fade Out** obsługiwanym przez dedykowany timer:
-- Jednoczesne płynne ściemnienie obrazu (poprzez adjust brightness) i ściszenie dźwięku do zera.
-- Czas trwania efektu regulowany suwakiem **Fade**: od **0.2 s do 2.0 s**.
-- Po zakończeniu fade brightness okna projekcji jest automatycznie przywracana do ustawionej wartości.
+Show Control is suitable for:
 
-### 📋 Lista odtwarzania (Playlist)
-- Dodawanie plików przez dialog systemowy (przycisk **Dodaj pliki**) lub metodą **Drag & Drop** z Eksploratora Windows.
-- Zmiana kolejności elementów metodą **Drag & Drop** wewnątrz listy — z poprawnym śledzeniem aktualnie odtwarzanego wiersza.
-- Podświetlanie aktualnie odtwarzanego elementu (wyróżnione tło + pogrubiona czcionka).
-- **Wyszukiwarka** z filtrowaniem listy w czasie rzeczywistym (skrót **F3**).
-- Skrót **F2** przenosi fokus klawiatury na pierwszy element listy.
-- Podwójne kliknięcie elementu uruchamia odtwarzanie.
-- **☑ Checkbox nakładki per-plik** — każdy element listy posiada checkbox po lewej stronie. Zaznaczenie go sprawia, że podczas odtwarzania tego konkretnego pliku okno projekcji automatycznie przełącza się w tryb nakładki (wyświetla logo zamiast wideo). Dzięki temu przed całym pokazem można z góry skonfigurować, które materiały mają mieć aktywną nakładkę, a które mają wyświetlać wideo wprost. Stan checkboxów jest zapisywany w pliku projektu (JSON) i wczytywany przy kolejnym otwarciu.
+- Live events and stage performances
+- School assemblies and ceremonies
+- Conferences and presentations
+- Concerts and music events
+- Broadcast and multimedia productions
+- Public events and exhibitions
 
-### 🖼️ Obsługa plików graficznych (obrazy statyczne)
-- Pliki `JPG`, `PNG`, `BMP`, `GIF` wyświetlane są jako pełnoekranowy obraz w oknie projekcji.
-- W trybie **Autoodtwarzania** każdy obraz wyświetlany jest przez ustawiony czas (**Prędkość grafiki**: 1–60 s), po którym automatycznie przechodzi do następnej pozycji.
-- Pasek postępu i etykieta czasu odliczają czas wyświetlania grafiki.
+## Key Features
 
-### 💾 Zarządzanie projektami
-- Zapis listy odtwarzania do pliku **JSON** (pełne ścieżki do plików + ścieżka do nakładki).
-- Wczytanie projektu z automatyczną weryfikacją istnienia każdego pliku na dysku — brakujące pliki są pomijane z ostrzeżeniem w konsoli.
-- **Automatyczne wczytanie ostatniego projektu** przy starcie aplikacji (zapamiętywane przez QSettings).
-- Aktywny projekt wyświetlany jest w tytule okna: `Show Control - Operator Console v0.3 - [nazwa.json]`.
-- Skrót klawiszowy **F12** do szybkiego zapisu projektu.
-- Obsługa starego formatu (lista plików) i nowego formatu (słownik z kluczem `files` i `logo`).
+### Dual-Screen Operation
 
-### 🎚️ Kontrola transportu
+- Automatically detects a second display.
+- Opens a dedicated projection window on the secondary screen.
+- Displays media in fullscreen mode.
+- Keeps the operator console separate from the audience-facing display.
+- Allows switching between fullscreen and windowed projection.
+- Supports temporarily hiding and restoring the projection window.
 
-| Akcja | Przycisk | Skrót |
-|---|---|---|
-| Odtwórz zaznaczony element | **▶ PLAY** | F4 / Enter |
-| Pauza / Wznów | **⏸ PAUSE** | Spacja |
-| Zatrzymaj | **⏹ STOP** | F5 |
-| Poprzedni element | **⏮ Poprzedni** | F6 / ↑ (lub ←) |
-| Następny element | **Następny ⏭** | F7 / ↓ (lub →) |
-| Fade Out i Stop | **✨ Fade Out** | F1 |
+### Multimedia Playback
 
-Pasek postępu umożliwia **przewijanie** materiału — flaga `user_is_seeking` wstrzymuje odczyty pozycji podczas przeciągania suwaka, zapobiegając migotaniu wskaźnika.
+Powered by **LibVLC** through the `python-vlc` library.
 
-### 🔊 Panel Sterowania (suwaki pionowe)
+Supported media formats include:
 
-Sekcja **Sterowanie** zawiera trzy niezależne suwaki pionowe:
-
-| Suwak | Zakres | Opis |
-|---|---|---|
-| **🔊 Głośność** | 0–100% | Głośność wyjścia audio VLC w czasie rzeczywistym |
-| **💡 Jasność** | 0–100% | Jasność i kontrast obrazu w oknie projekcji (VLC adjust) |
-| **⏱ Fade** | 0.2 s–2.0 s | Czas trwania efektu wygaszania / rozjaśniania |
-
-Suwak jasności działa jednocześnie na główny odtwarzacz wideo oraz na odtwarzacz nakładki — pozwala na delikatne przyciemnienie całej projekcji bez przerywania odtwarzania.
-
-### 🖼️ Nakładka (Logo Overlay)
-
-Aplikacja obsługuje **nakładkę** wyświetlaną w oknie projekcji zamiast lub na tle treści głównej:
-
-- **Obraz statyczny** (PNG, JPG, BMP, GIF) — wyświetlany przez `LogoViewer` z zachowaniem proporcji, centrowany na czarnym tle.
-- **Wideo w pętli** (MP4, MKV) — odtwarzane przez drugi odtwarzacz VLC w trybie `input-repeat=65535` (nieskończona pętla), bez dźwięku.
-- Wybór pliku nakładki: przycisk **📁 Wybierz plik nakładki**.
-- **Nakładka na obraz (F9)** — przełącza widok projekcji na tryb nakładki niezależnie od odtwarzanego materiału; przydatne do wyświetlania logo podczas przerw.
-- **Obrazek dla Audio (F10)** — po włączeniu, podczas odtwarzania pliku audio widok projekcji automatycznie przełącza się na nakładkę (zamiast pustego czarnego okna VLC).
-- Jasność nakładki zsynchronizowana ze suwakiem Jasności.
-
-### 🎨 Motywy interfejsu
-
-Aplikacja oferuje cztery wbudowane motywy kolorystyczne (wybór w sekcji Ustawienia):
-
-| Motyw | Opis |
+| Type | Formats |
 |---|---|
-| **Studio Dark** | Ciemny, neutralny — klasyczne środowisko studio |
-| **Studio Light** | Jasny, do pracy w dobrze oświetlonych pomieszczeniach |
-| **Red Night (Stealth)** | Czerwony na czarnym — praca w ciemności bez utraty akomodacji wzroku |
-| **Broadcast Indigo** | Indygo/fiolet z żywymi akcentami — domyślny w v0.3 |
+| Video | MP4, MKV |
+| Audio | MP3, WAV, FLAC, AAC, OGG, M4A |
+| Images | JPG, JPEG, PNG, BMP, GIF |
 
-Wybrany motyw zapisywany jest automatycznie przez QSettings i przywracany przy kolejnym uruchomieniu.
+Playback features:
 
-### ⚙️ Ustawienia
+- Play, pause and stop controls.
+- Previous and next media navigation.
+- Playback progress indicator and seeking.
+- Real-time volume adjustment.
+- Automatic playback of the next playlist item.
+- Configurable display duration for images.
+- Independent playback engines for primary media and video overlays.
 
-| Opcja | Skrót | Opis |
+### Playlist Management
+
+- Add media files using the file browser.
+- Drag and drop files from Windows Explorer.
+- Reorder playlist items using drag and drop.
+- Search and filter playlist entries in real time.
+- Highlight the currently playing item.
+- Configure overlay behaviour individually for playlist entries.
+- Remove unwanted items from the playlist.
+
+### Visual Overlays and Branding
+
+Display a logo, static image or looping video instead of the main projection.
+
+Supported overlay formats:
+
+- Static images: PNG, JPG, JPEG, BMP, GIF.
+- Video: MP4, MKV.
+
+Additional capabilities:
+
+- Display a logo during audio playback.
+- Toggle the overlay independently of the current playlist item.
+- Play video overlays continuously in a loop without audio.
+- Adjust overlay brightness.
+- Automatically activate overlays for selected playlist entries.
+
+This is particularly useful for displaying event branding, school or company logos, sponsor graphics, and visual backgrounds between presentations.
+
+### Smooth Fade Out
+
+A dedicated fade-out effect provides professional transitions when stopping media.
+
+- Gradually reduces audio volume to zero.
+- Simultaneously dims the projected video.
+- Adjustable transition duration from 0.2 to 2.0 seconds.
+- Restores the configured projection brightness after the transition.
+
+### Audio and Video Controls
+
+The operator console provides three independent controls:
+
+| Control | Range | Description |
 |---|---|---|
-| **Autoodtwarzanie** | — | Po zakończeniu pliku automatycznie startuje kolejny element listy |
-| **Prędkość grafiki** | — | Czas wyświetlania pliku graficznego (1–60 s) przy autoodtwarzaniu |
-| **Tryb Pilota (L/P)** | — | Nawigacja strzałkami Lewo/Prawo zamiast Góra/Dół (standard pilotów prezentacji) |
-| **Obrazek dla Audio** | F10 | Wyświetlaj nakładkę automatycznie gdy gra plik audio |
-| **Motyw** | — | Wybór motywu kolorystycznego interfejsu |
+| Volume | 0–100% | Real-time audio volume |
+| Brightness | 0–100% | Projection brightness and contrast |
+| Fade | 0.2–2.0 s | Fade-out duration |
 
-### ⌨️ Pełna lista skrótów klawiszowych
+### Autoplay and Remote Control
 
-| Skrót | Akcja |
+- Automatically advances to the next playlist item.
+- Configurable image display duration (1–60 seconds).
+- Remote-control navigation mode using left and right arrow keys.
+- Standard navigation mode using up and down arrow keys.
+
+### User Interface and Themes
+
+Four built-in interface themes:
+
+- Studio Dark
+- Studio Light
+- Red Night (Stealth)
+- Broadcast Indigo
+
+Additional features:
+
+- English and Polish interface languages.
+- Persistent theme and language preferences.
+- Visual button feedback after keyboard or mouse interaction.
+- Operator-focused interface designed for quick access to essential controls.
+
+### Project Management
+
+Save and restore complete playback configurations.
+
+Projects are stored as JSON files and include:
+
+- Playlist entries and file paths.
+- Per-item overlay configuration.
+- Overlay media path.
+
+Other features:
+
+- Load previously saved projects.
+- Automatically restore the last opened project.
+- Check media file availability when loading projects.
+- Maintain backward compatibility with older project formats.
+- Save the current project using F12.
+
+## Keyboard Shortcuts
+
+| Shortcut | Action |
 |---|---|
-| **F1** | Fade Out (płynne wyciszenie i ściemnienie) |
-| **F2** | Fokus na pierwszy element listy |
-| **F3** | Fokus na pole wyszukiwania |
-| **F4 / Enter** | Play (odtwórz zaznaczony element) |
-| **F5** | Stop |
-| **F6** | Poprzedni plik |
-| **F7** | Następny plik |
-| **F9** | Nakładka na obraz (włącz/wyłącz) |
-| **F10** | Obrazek dla Audio (włącz/wyłącz) |
-| **F11** | Pełny ekran okna projekcji |
-| **F12** | Zapisz projekt |
-| **Spacja** | Play / Pauza |
-| **Delete** | Usuń zaznaczony element z listy |
-| **↑ / ↓** | Nawigacja po liście (tryb standardowy) |
-| **← / →** | Nawigacja po liście (tryb pilota) |
+| F1 | Fade Out and Stop |
+| F2 | Focus playlist |
+| F3 | Focus search field |
+| F4 / Enter | Play selected item |
+| Space | Play / Pause |
+| F5 | Stop |
+| F6 | Previous item |
+| F7 | Next item |
+| F9 | Toggle overlay |
+| F10 | Toggle image for audio |
+| F11 | Toggle projection fullscreen |
+| F12 | Save project |
+| Delete | Remove selected playlist item |
+| Up / Down | Playlist navigation (standard mode) |
+| Left / Right | Playlist navigation (remote mode) |
 
-### 🔁 Feedback przycisków
-Każdy przycisk wyposażony jest w animację **flash** (podświetlenie na 180 ms) po naciśnięciu lub użyciu skrótu klawiszowego — zapewnia operatorowi wizualne potwierdzenie wykonanej akcji bez konieczności patrzenia na ekran.
+## Screenshots
 
-### 🛡️ Stabilność i bezpieczeństwo
-- Wszystkie operacje VLC w wątkach tła — GUI nigdy nie blokuje odtwarzania.
-- Mechanizm **self-healing**: przez pierwsze 2 sekundy odtwarzania aplikacja cyklicznie synchronizuje poziom głośności z suwakiem, gwarantując poprawne ustawienie przez VLC.
-- Kompleksowa obsługa wyjątków (`try-except`) z cichym fail-safe — aplikacja nie crashuje przy błędach odtwarzacza.
-- Zachowanie `HWND` okna projekcji przy ukrywaniu (event `closeEvent` ignoruje zamknięcie, co chroni przed utratą uchwytu okna).
-- Brak użycia `mute` na poziomie systemu (powoduje „pukanie" na Win32) — zamiast tego zerowanie wolumenu VLC.
-- Obsługa starego i nowego formatu pliku projektu JSON — pełna kompatybilność wsteczna.
+![Show Control – Operator Console](app036.png)
 
----
+## Technology Stack
 
-## Instalacja i uruchomienie
+Show Control is built with Python and uses established multimedia and desktop application technologies.
 
-### ✅ Opcja A — Gotowy plik wykonywalny `.exe` (bez instalacji Python)
+| Technology | Purpose |
+|---|---|
+| Python 3.10+ | Application logic |
+| PyQt6 | Graphical user interface |
+| LibVLC | Multimedia playback engine |
+| python-vlc | Python bindings for VLC |
+| JSON | Project configuration and playlist storage |
+| QSettings | Persistent application preferences |
 
-Pobierz plik `ShowControl.exe` z folderu `dist/` i uruchom bezpośrednio.
+The application uses separate VLC player instances for primary media playback and visual overlays.
 
-> **Wymaganie:** Zainstalowany **VLC Media Player w wersji 64-bitowej** (standardowa instalacja z [videolan.org](https://www.videolan.org/)). Aplikacja korzysta z bibliotek VLC zainstalowanych w systemie.
+## Installation
 
-### 🐍 Opcja B — Uruchomienie ze źródeł (Python)
+### Requirements
 
-#### Wymagania
-1. **Python 3.10+** (zalecany 3.11+)
-2. **VLC Media Player 64-bit**
+- Windows 10 or Windows 11 (64-bit recommended).
+- Python 3.10 or newer.
+- VLC Media Player (64-bit).
+- A second monitor or projector for dual-screen operation.
 
-#### Kroki instalacji
-1. Sklonuj repozytorium lub pobierz pliki projektu.
-2. Otwórz terminal w folderze projektu.
-3. (Opcjonalnie) Stwórz i aktywuj środowisko wirtualne:
-   ```bash
-   python -m venv .venv
-   # Windows:
-   .venv\Scripts\activate
-   ```
-4. Zainstaluj wymagane biblioteki:
-   ```bash
-   pip install -r requirements.txt
-   ```
-5. Uruchom aplikację:
-   ```bash
-   python main.py
-   ```
+**Important:** The VLC Media Player installation must match the architecture of your Python environment. A 64-bit Python installation requires 64-bit VLC.
 
-### 🔨 Kompilacja do .exe (opcjonalne)
-Aby samodzielnie skompilować aplikację do jednego pliku wykonywalnego:
+Download VLC:
+
+https://www.videolan.org/vlc/
+
+### Run from Source
+
+1. Clone the repository:
+
+```bash
+git clone https://github.com/debowski/Show-control.git
+cd Show-control
+```
+
+2. Create a virtual environment:
+
+```bash
+python -m venv .venv
+```
+
+3. Activate the environment:
+
+```bash
+.venv\Scripts\activate
+```
+
+4. Install dependencies:
+
+```bash
+pip install -r requirements.txt
+```
+
+5. Run the application:
+
+```bash
+python main.py
+```
+
+### Build an Executable
+
+The project includes a PyInstaller specification file.
+
+Install PyInstaller:
+
 ```bash
 pip install pyinstaller
-pyinstaller --onefile --windowed --name "ShowControl" main.py
 ```
-Plik wynikowy znajdzie się w folderze `dist\ShowControl.exe`.
 
----
+Build the application:
 
-## Rozwiązywanie problemów
+```bash
+pyinstaller ShowControl.spec
+```
 
-| Problem | Rozwiązanie |
+The executable will be generated in the `dist` directory.
+
+Note: VLC runtime libraries must also be available on the target computer.
+
+## Usage
+
+1. Connect a second monitor or projector to your computer.
+2. Set Windows display mode to **Extend these displays**.
+3. Launch Show Control.
+4. Add media files to the playlist.
+5. Select an overlay image or looping video if required.
+6. Configure volume, brightness and playback options.
+7. Start playback using the operator console.
+8. Control the presentation using the graphical interface or keyboard shortcuts.
+
+The audience sees only the projection window, while the operator retains full control through the main application window.
+
+## Troubleshooting
+
+| Problem | Possible solution |
 |---|---|
-| **Błąd biblioteki VLC** | Upewnij się, że VLC Media Player jest zainstalowany. Python 64-bit wymaga VLC 64-bit. |
-| **Brak obrazu na drugim ekranie** | Sprawdź ustawienia ekranów w systemie: tryb **„Rozszerz te ekrany"**. |
-| **Plik nie odtwarza się** | Sprawdź czy ścieżka do pliku nie zawiera znaków specjalnych. Upewnij się, że format jest obsługiwany przez VLC. |
-| **Okno projekcji zniknęło** | Użyj przycisku **„Pokaż Okno"** na panelu operatora. |
-| **Brak dźwięku na starcie** | Przesuń suwak głośności — VLC może wymagać krótkiego czasu na zainicjowanie wyjścia audio. |
-| **Nakładka wideo się nie zapętla** | Upewnij się, że wybrany plik wideo jest obsługiwany przez VLC i nie jest uszkodzony. |
+| VLC library cannot be loaded | Install VLC Media Player and check that its architecture matches Python. |
+| No projection on the second screen | Set Windows display mode to Extend these displays. |
+| Media file does not play | Check the file format and whether the file is accessible. |
+| Projection window is hidden | Use the Show/Hide Projection Window control. |
+| No audio at playback start | Check the volume setting and Windows audio output device. |
+| Video overlay does not loop | Verify that the overlay file is supported and not corrupted. |
+
+## Project Status
+
+Show Control is actively developed. The current source code version is **0.3.7**.
+
+The project is intended to evolve with additional functionality and improvements based on practical use in live event environments.
+
+## License
+
+This project is licensed under the **GNU General Public License v3.0 (GPL-3.0)**.
+
+See the [LICENSE](LICENSE) file for details.
+
+Copyright © 2026 Piotr Dębowski.
+
+## Links
+
+- **GitHub Repository:** https://github.com/debowski/Show-control
+- **Project Website:** https://debowski.github.io/showcontrol/
+- **VLC Media Player:** https://www.videolan.org/vlc/
+- **Python:** https://www.python.org/
 
 ---
 
-## Licencja
-
-Ten program jest wolnym oprogramowaniem na warunkach **Powszechnej Licencji Publicznej GNU (GPL) wersja 3**, wydanej przez Fundację Wolnego Oprogramowania.
-
-Copyright © 2026 Piotr Dębowski
-
-Szczegóły w pliku [`LICENSE`](LICENSE).
+**Show Control – Professional Multimedia Playback for Live Events.**

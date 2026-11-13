@@ -22,10 +22,13 @@ from PyQt6.QtGui import QShortcut, QKeySequence, QPainter, QColor, QPixmap, QFon
 
 logging.basicConfig(level=logging.ERROR, format='%(asctime)s - %(levelname)s - %(message)s')
 
+VLC_MISSING_MESSAGE = ("Błąd: Biblioteka python-vlc nie jest zainstalowana. "
+                       "Zainstaluj ją używając: pip install python-vlc")
+
 try:
     import vlc
 except ImportError:
-    print(TRANSLATIONS[DEFAULT_LANGUAGE]['vlc_missing'])
+    print(VLC_MISSING_MESSAGE)
     sys.exit(1)
 
 MEDIA_EXTENSIONS = ('.mp4', '.mp3', '.mkv', '.jpg', '.jpeg', '.png', '.bmp', '.gif', '.wav', '.flac', '.aac', '.ogg', '.m4a')
@@ -81,7 +84,6 @@ TRANSLATIONS = {
         "file_missing": "Plik nie istnieje lub został przeniesiony:\n{path}",
         "save_error_title": "Błąd zapisu",
         "load_error_title": "Błąd odczytu",
-        "vlc_missing": "Błąd: Biblioteka python-vlc nie jest zainstalowana. Zainstaluj ją używając: pip install python-vlc",
     },
     "en": {
         "projection_window_title": "Projection - Player",
@@ -126,7 +128,6 @@ TRANSLATIONS = {
         "file_missing": "File does not exist or has been moved:\n{path}",
         "save_error_title": "Save Error",
         "load_error_title": "Load Error",
-        "vlc_missing": "Error: python-vlc library is not installed. Install it using: pip install python-vlc",
     }
 }
 

@@ -1,4 +1,4 @@
-# Show-control Version 0.4.3
+# Show-control Version 0.7.1
 # Copyright (C) 2026 Piotr Dębowski
 #
 # Professional Broadcast Edition
@@ -1018,7 +1018,7 @@ class App(QMainWindow):
     def __init__(self):
         super().__init__()
         self.settings = QSettings("ShowControl", "OperatorConsole")
-        self.base_title = "Show Control - Operator Console v0.7"
+        self.base_title = "Show Control - Operator Console v0.7.1"
         self.setWindowTitle(self.base_title)
         self.setMinimumSize(900, 700)
         

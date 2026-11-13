@@ -168,7 +168,7 @@ Other features:
 
 ## Screenshots
 
-![Show Control – Operator Console](app036.png)
+![Show Control – Operator Console](app071.png)
 
 ## Technology Stack
 

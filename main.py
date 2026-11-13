@@ -1278,14 +1278,15 @@ class App(QMainWindow):
         fade_title = QLabel("⏱ Fade")
         fade_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         fade_title.setStyleSheet("font-size: 8pt; color: #aaaaaa;")
-        self.fade_speed_label = QLabel("2.0s")
+        self.fade_speed_label = QLabel("0.8s")
         self.fade_speed_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.fade_speed_slider = QSlider(Qt.Orientation.Vertical)
         # Zakres 2–20 (= 0.2s–2.0s, skalujemy /10 → czyli 10 = 1.0s, 20 = 2.0s)
         self.fade_speed_slider.setRange(2, 20)
-        self.fade_speed_slider.setValue(8)   # domyślnie 2.0s
         self.fade_speed_slider.setToolTip("Czas trwania efektu fade (0.2s – 2.0s)")
+        # Podłączamy przed setValue, żeby etykieta od razu pokazała wartość domyślną
         self.fade_speed_slider.valueChanged.connect(self._on_fade_speed_changed)
+        self.fade_speed_slider.setValue(8)   # domyślnie 0.8s
         fade_slider_layout.addWidget(fade_title)
         fade_slider_layout.addWidget(self.fade_speed_label)
         fade_slider_layout.addWidget(self.fade_speed_slider, alignment=Qt.AlignmentFlag.AlignHCenter)

@@ -279,7 +279,7 @@ The audience sees only the projection window, while the operator retains full co
 
 ## Project Status
 
-Show Control is actively developed. The current source code version is **0.3.7**.
+Show Control is actively developed. The current source code version is **0.7.1**.
 
 The project is intended to evolve with additional functionality and improvements based on practical use in live event environments.
 

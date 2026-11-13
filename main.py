@@ -1281,9 +1281,9 @@ class App(QMainWindow):
         self.fade_speed_label = QLabel("0.8s")
         self.fade_speed_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.fade_speed_slider = QSlider(Qt.Orientation.Vertical)
-        # Zakres 2–20 (= 0.2s–2.0s, skalujemy /10 → czyli 10 = 1.0s, 20 = 2.0s)
-        self.fade_speed_slider.setRange(2, 20)
-        self.fade_speed_slider.setToolTip("Czas trwania efektu fade (0.2s – 2.0s)")
+        # Zakres 0–10 (= 0.0s–1.0s, skalujemy /10 → czyli 10 = 1.0s)
+        self.fade_speed_slider.setRange(0, 10)
+        self.fade_speed_slider.setToolTip("Czas trwania efektu fade (0.0s – 1.0s)")
         # Podłączamy przed setValue, żeby etykieta od razu pokazała wartość domyślną
         self.fade_speed_slider.valueChanged.connect(self._on_fade_speed_changed)
         self.fade_speed_slider.setValue(8)   # domyślnie 0.8s
@@ -1609,12 +1609,12 @@ class App(QMainWindow):
             self.projection_window.logo_viewer.update()
 
     def _on_fade_speed_changed(self, value):
-        # value: 2–20, gdzie 10 = 1.0s, 20 = 2.0s
+        # value: 0–10, gdzie 10 = 1.0s
         seconds = value / 10.0
         self.fade_speed_label.setText(f"{seconds:.1f}s")
 
     def _fade_duration(self):
-        """Zwraca czas trwania fade w sekundach (0.2 – 2.0)."""
+        """Zwraca czas trwania fade w sekundach (0.0 – 1.0)."""
         return self.fade_speed_slider.value() / 10.0
 
     def format_time(self, ms):

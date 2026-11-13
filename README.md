@@ -92,7 +92,7 @@ A dedicated fade-out effect provides professional transitions when stopping medi
 
 - Gradually reduces audio volume to zero.
 - Simultaneously dims the projected video.
-- Adjustable transition duration from 0.2 to 2.0 seconds.
+- Adjustable transition duration from 0 to 1.0 seconds.
 - Restores the configured projection brightness after the transition.
 
 ### Audio and Video Controls
@@ -103,7 +103,7 @@ The operator console provides three independent controls:
 |---|---|---|
 | Volume | 0–100% | Real-time audio volume |
 | Brightness | 0–100% | Projection brightness and contrast |
-| Fade | 0.2–2.0 s | Fade-out duration |
+| Fade | 0.0–1.0 s | Fade-out duration |
 
 ### Autoplay and Remote Control
 

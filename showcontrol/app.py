@@ -1,7 +1,6 @@
 """Okno operatora i okno projekcji. Do faz 3 i 5 logika fade i UI są w tym pliku."""
 
 import json
-import logging
 import os
 import sys
 
@@ -20,6 +19,7 @@ from showcontrol.domain.overlay_rules import projection_plan
 from showcontrol.domain.project_schema import (Project, ProjectItem,
                                                 project_from_data, project_to_data)
 from showcontrol.playback.engine import Engine, vlc
+from showcontrol.playback.fade import FadeController
 from showcontrol.playback.session import PlaybackSession
 from showcontrol.ui.i18n import DEFAULT_LANGUAGE, get_t as translate
 from showcontrol.ui.playlist_view import (PlaylistFilterProxyModel, PlaylistItemDelegate,
@@ -212,9 +212,8 @@ class App(QMainWindow):
         self.playlist_model.modelReset.connect(self.session.on_model_reset)
 
         self.init_ui()
-        self.fade_timer = QTimer(self)
-        self.fade_timer.timeout.connect(self._fade_out_step)
-        self._fade_state = None
+        self.fade = FadeController(self.engine, self._set_projection_brightness, parent=self)
+        self.fade.finished.connect(self._on_fade_finished)
         self.session.start()
         
         last_project = self.settings.value("last_project", "")
@@ -921,59 +920,25 @@ class App(QMainWindow):
         )
 
     def fade_out(self):
-        if self.session.is_playing and not self.session.is_transitioning:
-            self._start_fade_out()
-
-    def _is_current_playing_audio(self):
-        return self.session.is_current_audio()
-
-    def _start_fade_out(self):
+        if not self.session.is_playing or self.session.is_transitioning:
+            return
         self.session.begin_transition()
-        try:
-            fade_secs = self._fade_duration()
-            steps = max(5, int(fade_secs * 10))
-            has_audio = (self.engine.player.audio_get_track_count() > 0)
-            audio_only = self._is_current_playing_audio()
-            self._fade_state = {
-                "step": 0,
-                "steps": steps,
-                "interval_ms": max(1, int((fade_secs * 1000) / steps)),
-                "has_audio": has_audio,
-                "audio_only": audio_only,
-                "start_vol": self.engine.player.audio_get_volume() if has_audio else 0,
-                "start_bri": self.brightness_slider.value() / 100.0,
-            }
-            self.fade_timer.start(self._fade_state["interval_ms"])
-        except Exception:
-            logging.error("Błąd podczas startu fade out:", exc_info=True)
+        if not self.fade.start(
+            self._fade_duration(),
+            self.brightness_slider.value() / 100.0,
+            self.session.is_current_audio(),
+        ):
             self.session.end_transition()
 
-    def _fade_out_step(self):
-        state = self._fade_state
-        if not state:
-            self.fade_timer.stop()
-            return
+    def _on_fade_finished(self, audio_only, start_brightness):
+        self.session.stop(
+            keep_overlay=audio_only,
+            after_stop=lambda: self._after_fade_stop(audio_only, start_brightness),
+        )
 
-        state["step"] += 1
-        progress = min(1.0, state["step"] / state["steps"])
-
-        if state["has_audio"]:
-            vol = state["start_vol"] * (1 - progress)
-            self.engine.player.audio_set_volume(int(max(0, vol)))
-
-        if not state["audio_only"]:
-            bri = state["start_bri"] * (1 - progress)
-            self._set_projection_brightness(max(0.0, bri))
-
-        if progress >= 1.0:
-            self.fade_timer.stop()
-            self.stop_media(keep_overlay=state["audio_only"], after_stop=self._finish_fade_out)
-
-    def _finish_fade_out(self):
-        state = self._fade_state
-        if state and not state["audio_only"]:
-            self._set_projection_brightness(state["start_bri"])
-        self._fade_state = None
+    def _after_fade_stop(self, audio_only, start_brightness):
+        if not audio_only:
+            self._set_projection_brightness(start_brightness)
         self.session.end_transition()
 
     def toggle_play_pause(self):
@@ -981,9 +946,8 @@ class App(QMainWindow):
             self.play_media()
 
     def stop_media(self, keep_overlay=False, after_stop=None):
-        if self.fade_timer.isActive() and after_stop is None:
-            self.fade_timer.stop()
-            self._fade_state = None
+        if self.fade.is_active and after_stop is None:
+            self.fade.cancel()
             self.session.end_transition()
 
         self.session.stop(keep_overlay=keep_overlay, after_stop=after_stop)

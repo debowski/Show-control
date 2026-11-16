@@ -5,7 +5,7 @@ import os
 import sys
 
 from PyQt6.QtCore import Qt, QTimer, QModelIndex
-from PyQt6.QtGui import QShortcut, QKeySequence, QPainter, QPixmap
+from PyQt6.QtGui import QShortcut, QKeySequence, QPainter
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                              QHBoxLayout, QPushButton, QSlider, QListView,
                              QFileDialog, QMessageBox, QCheckBox, QStackedLayout,
@@ -14,12 +14,12 @@ from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
 
 from showcontrol import __version__
 from showcontrol.bootstrap import set_window_icon
-from showcontrol.domain.media import is_audio_file, is_image_file
-from showcontrol.domain.overlay_rules import projection_plan
+from showcontrol.domain.media import is_audio_file
 from showcontrol.domain.project_schema import (Project, ProjectItem,
                                                 project_from_data, project_to_data)
-from showcontrol.playback.engine import Engine, vlc
+from showcontrol.playback.engine import Engine
 from showcontrol.playback.fade import FadeController
+from showcontrol.playback.overlay import OverlayController
 from showcontrol.playback.session import PlaybackSession
 from showcontrol.ui.i18n import DEFAULT_LANGUAGE, get_t as translate
 from showcontrol.ui.playlist_view import (PlaylistFilterProxyModel, PlaylistItemDelegate,
@@ -194,10 +194,11 @@ class App(QMainWindow):
                            self.projection_window.overlay_video_widget)
 
         self.playlist_model = PlaylistModel(self)
+        self.overlay = OverlayController(self.engine, self.projection_window)
         self.session = PlaybackSession(
             self.engine, self.playlist_model.store,
             advance=self.play_next_file,
-            overlay_tick=self._check_overlay_player_status,
+            overlay_tick=self.overlay.tick,
             parent=self,
         )
         self.session.playing_row_changed.connect(self.playlist_model.set_playing_row)
@@ -755,13 +756,6 @@ class App(QMainWindow):
         h, m = divmod(m, 60)
         return f"{h:02d}:{m:02d}:{s:02d}" if h > 0 else f"{m:02d}:{s:02d}"
 
-    def _check_overlay_player_status(self):
-        overlay_path = getattr(self, '_global_overlay_path', None)
-        if overlay_path and os.path.exists(overlay_path) and not is_image_file(overlay_path):
-            if self.engine.overlay_player.get_state() in (vlc.State.Ended, vlc.State.Stopped):
-                self.engine.overlay_player.play()
-                self.engine.mute_overlay()
-
     def _on_progress(self, fraction, elapsed_ms, total_ms):
         if fraction >= 0:
             self.progress_slider.setValue(int(fraction * 1000))
@@ -849,7 +843,7 @@ class App(QMainWindow):
 
 
     def _set_projection_mode_for_path(self, path):
-        plan = projection_plan(
+        self.overlay.apply(
             global_overlay_enabled=bool(
                 getattr(self, 'force_overlay_btn', None)
                 and self.force_overlay_btn.isChecked()
@@ -858,51 +852,8 @@ class App(QMainWindow):
             item_overlay_path=self.playlist_model.overlay_path_for_row(self.session.playing_row),
             is_audio=bool(path and is_audio_file(path)),
             overlay_on_audio_enabled=self.overlay_on_audio_checkbox.isChecked(),
-            global_overlay_path=getattr(self, '_global_overlay_path', None),
+            brightness=self.brightness_slider.value() / 100.0,
         )
-
-        if plan.show_overlay:
-            self.projection_window.set_mode_overlay()
-            # Indywidualna nakładka wygrywa; inaczej ładujemy globalną.
-            if plan.asset_path:
-                self._load_overlay_asset(plan.asset_path)
-            else:
-                self.update_overlay_media()
-        else:
-            self.projection_window.set_mode_media()
-
-        self.projection_window.overlay_viewer.show_overlay = plan.show_overlay
-        self.projection_window.overlay_viewer.update()
-
-    def _load_overlay_asset(self, path):
-        if getattr(self, '_loaded_overlay_path', None) == path:
-            return  # Już załadowane, nie ma potrzeby restartować
-
-        self._loaded_overlay_path = path
-
-        if not path or not os.path.exists(path):
-            self.engine.overlay_player.stop()
-            self.projection_window.overlay_viewer.overlay_pixmap = None
-            self.projection_window.overlay_viewer.update()
-            return
-
-        if is_image_file(path):
-            self.engine.overlay_player.stop()
-            self.projection_window.overlay_viewer.overlay_pixmap = QPixmap(path)
-            self.projection_window.overlay_stacked_layout.setCurrentWidget(self.projection_window.overlay_viewer)
-            self.projection_window.overlay_viewer.update()
-        else:
-            self.projection_window.overlay_viewer.overlay_pixmap = None
-            self.projection_window.overlay_stacked_layout.setCurrentWidget(self.projection_window.overlay_video_widget)
-            media = self.engine.media(path)
-            # Ensure overlay media is played without audio
-            media.add_option('no-audio')
-            media.add_option('input-repeat=65535')
-            self.engine.overlay_player.set_media(media)
-            self.engine.overlay_player.play()
-            self.engine.mute_overlay()
-            self.engine.overlay_player.video_set_adjust_int(vlc.VideoAdjustOption.Enable, 1)
-            self.engine.set_overlay_brightness(self.brightness_slider.value() / 100.0)
 
     def _on_playlist_overlay_changed(self, top_left, bottom_right, roles=None):
         """Wywoływane gdy zmieni się CheckStateRole lub inne istotne dane — od razu aktualizuje tryb projekcji
@@ -970,40 +921,8 @@ class App(QMainWindow):
         filter_str = self.get_t('select_overlay_dialog') + " (*.png *.jpg *.jpeg *.bmp *.gif *.mp4 *.mkv);;" + self.get_t('select_overlay_dialog') + " (*.png *.jpg *.jpeg *.bmp *.gif);;" + self.get_t('select_overlay_dialog') + " (*.mp4 *.mkv);;Wszystkie (*.*)"
         path, _ = QFileDialog.getOpenFileName(self, self.get_t('select_overlay_dialog'), "", filter_str)
         if path:
-            self._global_overlay_path = path
-            self.update_overlay_media()
-
-    def update_overlay_media(self):
-        path = getattr(self, '_global_overlay_path', None)
-        
-        if getattr(self, '_loaded_overlay_path', None) == path and path is not None:
-            return  # Już załadowane, nie ma potrzeby restartować
-            
-        self._loaded_overlay_path = path
-        
-        if not path or not os.path.exists(path):
-            self.engine.overlay_player.stop()
-            self.projection_window.overlay_viewer.overlay_pixmap = None
-            self.projection_window.overlay_viewer.update()
-            return
-
-        if is_image_file(path):
-            self.engine.overlay_player.stop()
-            self.projection_window.overlay_viewer.overlay_pixmap = QPixmap(path)
-            self.projection_window.overlay_stacked_layout.setCurrentWidget(self.projection_window.overlay_viewer)
-            self.projection_window.overlay_viewer.update()
-        else:
-            self.projection_window.overlay_viewer.overlay_pixmap = None
-            self.projection_window.overlay_stacked_layout.setCurrentWidget(self.projection_window.overlay_video_widget)
-            media = self.engine.media(path)
-            # Ensure overlay media is played without audio
-            media.add_option('no-audio')
-            media.add_option('input-repeat=65535')
-            self.engine.overlay_player.set_media(media)
-            self.engine.overlay_player.play()
-            self.engine.mute_overlay()
-            self.engine.overlay_player.video_set_adjust_int(vlc.VideoAdjustOption.Enable, 1)
-            self.engine.set_overlay_brightness(self.brightness_slider.value() / 100.0)
+            self.overlay.set_global_asset(path)
+            self._set_projection_mode_for_path(self.session.current_media_path())
 
     def toggle_projection_fullscreen(self):
         if self.projection_window.isFullScreen():
@@ -1044,7 +963,7 @@ class App(QMainWindow):
                         ProjectItem(entry.path, entry.overlay, entry.overlay_path)
                         for entry in self.playlist_model.entries()
                     ),
-                    overlay_path=getattr(self, '_global_overlay_path', None),
+                    overlay_path=self.overlay.global_asset,
                 )
                 with open(path, 'w', encoding='utf-8') as f:
                     json.dump(project_to_data(project), f, ensure_ascii=False, indent=4)
@@ -1085,8 +1004,8 @@ class App(QMainWindow):
                 self.playlist_model.refresh_rows(0, len(existing_files) - 1)
 
             if project.overlay_path and os.path.exists(project.overlay_path):
-                self._global_overlay_path = project.overlay_path
-                self.update_overlay_media()
+                self.overlay.set_global_asset(project.overlay_path)
+                self._set_projection_mode_for_path(self.session.current_media_path())
 
             self.settings.setValue("last_project", path)
             self.update_window_title(path)

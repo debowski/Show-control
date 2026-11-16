@@ -1,7 +1,44 @@
-"""Magazyn pozycji playlisty — dane i operacje na wierszach. Bez Qt."""
+"""Magazyn pozycji playlisty — dane i operacje na wierszach. Bez Qt.
+
+Wskaźnik odtwarzanej pozycji nie jest częścią magazynu: należy do
+`playback/session.py`. Tutaj zostają tylko czyste reguły przesunięcia indeksu
+przy zmianach wierszy, używane przez sesję.
+"""
 
 import os
 from dataclasses import dataclass
+
+
+def adjust_row_for_insert(playing_row, first, count):
+    """Nowy indeks odtwarzanej pozycji po wstawieniu `count` wierszy w `first`."""
+    if playing_row >= first:
+        return playing_row + count
+    return playing_row
+
+
+def adjust_row_for_remove(playing_row, first, count):
+    """Nowy indeks po usunięciu zakresu; usunięcie bieżącego wiersza daje -1."""
+    last = first + count - 1
+    if first <= playing_row <= last:
+        return -1
+    if playing_row > last:
+        return playing_row - count
+    return playing_row
+
+
+def adjust_row_for_move(playing_row, source_row, count, destination_child):
+    """Nowy indeks po przeniesieniu zakresu (semantyka `beginMoveRows`)."""
+    insert_row = destination_child
+    if source_row < destination_child:
+        insert_row -= count
+
+    if source_row <= playing_row < source_row + count:
+        return insert_row + (playing_row - source_row)
+    if source_row < playing_row and destination_child > playing_row:
+        return playing_row - count
+    if source_row > playing_row and destination_child <= playing_row:
+        return playing_row + count
+    return playing_row
 
 
 @dataclass
@@ -13,11 +50,10 @@ class PlaylistEntry:
 
 
 class PlaylistStore:
-    """Właściciel wierszy playlisty i wskaźnika odtwarzanej pozycji."""
+    """Właściciel wierszy playlisty. Nie zna stanu odtwarzania."""
 
     def __init__(self):
         self._entries: list[PlaylistEntry] = []
-        self.playing_row = -1
 
     def rows(self):
         return tuple(self._entries)
@@ -47,27 +83,18 @@ class PlaylistStore:
     def insert_blanks(self, row, count):
         entries = [self._entry_for('') for _ in range(count)]
         self._entries[row:row] = entries
-        if self.playing_row >= row:
-            self.playing_row += count
 
     def add(self, paths, row=None):
         insert_row = self.row_count() if row is None or row == -1 else row
         entries = [self._entry_for(path) for path in paths]
         self._entries[insert_row:insert_row] = entries
-        if self.playing_row >= insert_row:
-            self.playing_row += len(entries)
         return insert_row
 
     def remove(self, row, count):
         del self._entries[row:row + count]
-        if self.playing_row >= row and self.playing_row < row + count:
-            self.playing_row = -1
-        elif self.playing_row >= row + count:
-            self.playing_row -= count
 
     def clear(self):
         self._entries = []
-        self.playing_row = -1
 
     def can_move(self, source_row, count, destination_child):
         return not (source_row == destination_child
@@ -82,23 +109,7 @@ class PlaylistStore:
             insert_row -= count
 
         self._entries[insert_row:insert_row] = items
-        self._update_playing_row_on_move(source_row, count, destination_child, insert_row)
         return insert_row
-
-    def _update_playing_row_on_move(self, source_row, count, destination_child, insert_row):
-        if source_row <= self.playing_row < source_row + count:
-            offset = self.playing_row - source_row
-            self.playing_row = insert_row + offset
-        else:
-            if source_row < self.playing_row and destination_child > self.playing_row:
-                self.playing_row -= count
-            elif source_row > self.playing_row and destination_child <= self.playing_row:
-                self.playing_row += count
-
-    def set_playing_row(self, row):
-        old_row = self.playing_row
-        self.playing_row = row
-        return old_row
 
     def overlay_for_row(self, row):
         if 0 <= row < len(self._entries):
@@ -123,3 +134,4 @@ class PlaylistStore:
         if 0 <= row < len(self._entries):
             self._entries[row].overlay = overlay
             self._entries[row].overlay_path = overlay_path
+

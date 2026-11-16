@@ -1,10 +1,9 @@
-"""Okno operatora i okno projekcji. Do faz 3–5 logika transportu, fade i UI są w tym pliku."""
+"""Okno operatora i okno projekcji. Do faz 3 i 5 logika fade i UI są w tym pliku."""
 
 import json
 import logging
 import os
 import sys
-import time
 
 from PyQt6.QtCore import Qt, QTimer, QModelIndex
 from PyQt6.QtGui import QShortcut, QKeySequence, QPainter, QPixmap
@@ -21,6 +20,7 @@ from showcontrol.domain.overlay_rules import projection_plan
 from showcontrol.domain.project_schema import (Project, ProjectItem,
                                                 project_from_data, project_to_data)
 from showcontrol.playback.engine import Engine, vlc
+from showcontrol.playback.session import PlaybackSession
 from showcontrol.ui.i18n import DEFAULT_LANGUAGE, get_t as translate
 from showcontrol.ui.playlist_view import (PlaylistFilterProxyModel, PlaylistItemDelegate,
                                           PlaylistModel, PlaylistView)
@@ -193,18 +193,29 @@ class App(QMainWindow):
         self.engine.attach(self.projection_window.video_widget,
                            self.projection_window.logo_video_widget)
 
+        self.playlist_model = PlaylistModel(self)
+        self.session = PlaybackSession(
+            self.engine, self.playlist_model.store,
+            advance=self.play_next_file,
+            overlay_tick=self._check_logo_player_status,
+            parent=self,
+        )
+        self.session.playing_row_changed.connect(self.playlist_model.set_playing_row)
+        self.session.media_changed.connect(self._set_projection_mode_for_path)
+        self.session.progress_changed.connect(self._on_progress)
+        self.session.idle.connect(self._on_idle)
+        self.session.stopping.connect(self._on_stopping)
+        self.session.transition_finished.connect(self._on_transition_finished)
+        self.playlist_model.rowsInserted.connect(self.session.on_rows_inserted)
+        self.playlist_model.rowsRemoved.connect(self.session.on_rows_removed)
+        self.playlist_model.rowsMoved.connect(self.session.on_rows_moved)
+        self.playlist_model.modelReset.connect(self.session.on_model_reset)
+
         self.init_ui()
-        self.image_autoplay_timer = QTimer(self)
-        self.image_autoplay_timer.setSingleShot(True)
-        self.image_autoplay_timer.timeout.connect(self._on_image_autoplay_timeout)
         self.fade_timer = QTimer(self)
         self.fade_timer.timeout.connect(self._fade_out_step)
         self._fade_state = None
-        self.image_autoplay_start = None
-        self.image_autoplay_duration = 0
-        self.is_playing = False
-        self.is_transitioning = False
-        self.user_is_seeking = False
+        self.session.start()
         
         last_project = self.settings.value("last_project", "")
         if last_project and os.path.exists(last_project):
@@ -276,7 +287,6 @@ class App(QMainWindow):
         layout.addLayout(search_layout)
 
         # --- LISTA PLIKÓW ---
-        self.playlist_model = PlaylistModel(self)
         self.proxy_model = PlaylistFilterProxyModel(self)
         self.proxy_model.setSourceModel(self.playlist_model)
         # Na żywo aktualizuj tryb projekcji gdy operator zmieni checkbox nakładki
@@ -332,9 +342,11 @@ class App(QMainWindow):
         self.progress_slider = QSlider(Qt.Orientation.Horizontal)
         self.progress_slider.setRange(0, 1000)
         self.progress_slider.setFixedHeight(25)
-        self.progress_slider.sliderMoved.connect(self.set_position)
-        self.progress_slider.sliderPressed.connect(lambda: setattr(self, 'user_is_seeking', True))
-        self.progress_slider.sliderReleased.connect(self.slider_released)
+        self.progress_slider.sliderMoved.connect(self.session.set_position)
+        self.progress_slider.sliderPressed.connect(self.session.begin_seek)
+        self.progress_slider.sliderReleased.connect(
+            lambda: self.session.end_seek(self.progress_slider.value())
+        )
         
         self.time_label = QLabel(EMPTY_TIME_LABEL)
         self.time_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -528,9 +540,6 @@ class App(QMainWindow):
         self.init_shortcuts()
         # Apply translations at the end of UI init so all widgets exist
         self.apply_translations()
-        self.status_timer = QTimer(self)
-        self.status_timer.timeout.connect(self.check_player_status)
-        self.status_timer.start(500)
 
     def init_shortcuts(self):
         for key in KEYBOARD_SHORTCUTS["pause"]["keys"]:
@@ -715,7 +724,7 @@ class App(QMainWindow):
         self.update_shortcut_descriptions()
 
     def set_volume(self, value):
-        self.engine.set_volume(value)
+        self.session.set_volume(value)
         self.vol_label.setText(f"{value}%")
 
     def set_brightness(self, value):
@@ -754,44 +763,31 @@ class App(QMainWindow):
                 self.engine.overlay_player.play()
                 self.engine.mute_overlay()
 
-    def _update_media_player_progress(self):
-        if self._is_current_playing_image() and self.image_autoplay_start is not None:
-            elapsed = time.time() - self.image_autoplay_start
-            total = self.image_autoplay_duration
-            frac = min(1.0, elapsed / total) if total > 0 else 0.0
-            self.progress_slider.setValue(int(frac * 1000))
-            rem = max(0, int((total - elapsed) * 1000))
-            self.time_label.setText(f"{self.format_time(int(elapsed * 1000))} / {self.format_time(int(total * 1000))} (Pozostało: -{self.format_time(rem)})")
-        else:
-            pos = self.engine.player.get_position()
-            if pos >= 0:
-                self.progress_slider.setValue(int(pos * 1000))
-            curr, total = self.engine.player.get_time(), self.engine.player.get_length()
-            if curr >= 0 and total >= 0:
-                rem = max(0, total - curr)
-                self.time_label.setText(f"{self.format_time(curr)} / {self.format_time(total)} (Pozostało: -{self.format_time(rem)})")
-                
-                # Zabezpieczenie (self-healing): przesyłamy głośność z suwaka przez 
-                # pierwsze 2 sekundy, co gwarantuje, że VLC poprawnie to odbierze
-                if curr < 2000:
-                    self.engine.player.audio_set_volume(self.volume_slider.value())
+    def _on_progress(self, fraction, elapsed_ms, total_ms):
+        if fraction >= 0:
+            self.progress_slider.setValue(int(fraction * 1000))
+        if elapsed_ms >= 0 and total_ms >= 0:
+            rem = max(0, total_ms - elapsed_ms)
+            self.time_label.setText(
+                f"{self.format_time(elapsed_ms)} / {self.format_time(total_ms)}"
+                f" (Pozostało: -{self.format_time(rem)})"
+            )
 
-    def check_player_status(self):
-        try:
-            self._check_logo_player_status()
-            if self.is_playing and not self.is_transitioning:
-                state = self.engine.player.get_state()
-                if state in (vlc.State.Ended, vlc.State.Stopped):
-                    self.is_playing = False
-                    if state == vlc.State.Ended and self.autoplay_checkbox.isChecked():
-                        self.play_next_file()
-                if not self.user_is_seeking:
-                    self._update_media_player_progress()
-            elif not self.user_is_seeking:
-                self.progress_slider.setValue(0)
-                self.time_label.setText(EMPTY_TIME_LABEL)
-        except Exception:
-            logging.error("Błąd w check_player_status:", exc_info=True)
+            # Zabezpieczenie (self-healing): przesyłamy głośność z suwaka przez
+            # pierwsze 2 sekundy, co gwarantuje, że VLC poprawnie to odbierze
+            if elapsed_ms < 2000:
+                self.engine.player.audio_set_volume(self.volume_slider.value())
+
+    def _on_idle(self):
+        self.progress_slider.setValue(0)
+        self.time_label.setText(EMPTY_TIME_LABEL)
+
+    def _on_stopping(self, keep_logo):
+        if not keep_logo:
+            self._set_projection_brightness(0.0)
+
+    def _on_transition_finished(self):
+        self._set_projection_brightness(self.brightness_slider.value() / 100.0)
 
     def add_files(self):
         title = self.get_t('add_media_dialog')
@@ -840,22 +836,17 @@ class App(QMainWindow):
 
     def play_media(self):
         idx = self.playlist.currentIndex()
-        if not idx.isValid() or self.is_transitioning:
+        if not idx.isValid() or self.session.is_transitioning:
             return
         source_idx = self.proxy_model.mapToSource(idx)
         row = source_idx.row()
         path = self.playlist_model.data(source_idx, Qt.ItemDataRole.UserRole)
-        
+
         if not path or not os.path.exists(path):
             QMessageBox.warning(self, self.get_t('file_error_title'), self.get_t('file_missing', path=path))
             return
-            
-        self._stop_image_autoplay_timer()
-        self.playlist_model.set_playing_row(row)
-        self._set_projection_mode_for_path(path)
-        self._start_media_transition(path)
-        if is_image_file(path):
-            self._start_image_autoplay_timer()
+
+        self.session.play_row(row, self.image_switch_delay.value())
 
 
     def _set_projection_mode_for_path(self, path):
@@ -864,8 +855,8 @@ class App(QMainWindow):
                 getattr(self, 'logo_overlay_btn', None)
                 and self.logo_overlay_btn.isChecked()
             ),
-            item_overlay_enabled=self.playlist_model.overlay_for_row(self.playlist_model.playing_row),
-            item_overlay_path=self.playlist_model.overlay_path_for_row(self.playlist_model.playing_row),
+            item_overlay_enabled=self.playlist_model.overlay_for_row(self.session.playing_row),
+            item_overlay_path=self.playlist_model.overlay_path_for_row(self.session.playing_row),
             is_audio=bool(path and is_audio_file(path)),
             overlay_on_audio_enabled=self.logo_audio_checkbox.isChecked(),
             global_overlay_path=getattr(self, '_logo_path', None),
@@ -919,77 +910,25 @@ class App(QMainWindow):
         jeśli zmodyfikowany wiersz jest właśnie odtwarzany."""
         if roles and (Qt.ItemDataRole.CheckStateRole not in roles and Qt.ItemDataRole.UserRole + 1 not in roles):
             return
-        playing = self.playlist_model.playing_row
+        playing = self.session.playing_row
         if top_left.row() <= playing <= bottom_right.row():
-            path = self._current_media_path()
+            path = self.session.current_media_path()
             self._set_projection_mode_for_path(path)
 
-    def _current_media_path(self):
-        row = self.playlist_model.playing_row
-        if row == -1:
-            return None
-        source_idx = self.playlist_model.index(row, 0)
-        return self.playlist_model.data(source_idx, Qt.ItemDataRole.UserRole)
-
-    def _start_image_autoplay_timer(self):
-        self._stop_image_autoplay_timer()
-        self.image_autoplay_duration = self.image_switch_delay.value()
-        self.image_autoplay_start = time.time()
-        self.image_autoplay_timer.start(self.image_autoplay_duration * 1000)
-
-    def _stop_image_autoplay_timer(self):
-        if self.image_autoplay_timer.isActive():
-            self.image_autoplay_timer.stop()
-        self.image_autoplay_start = None
-        self.image_autoplay_duration = 0
-
-    def _on_image_autoplay_timeout(self):
-        if self.autoplay_checkbox.isChecked() and self._is_current_playing_image():
-            self.play_next_file()
-
     def _on_autoplay_changed(self, state):
-        if self._is_current_playing_image():
-            if self.image_autoplay_start is None:
-                self._start_image_autoplay_timer()
-        else:
-            self._stop_image_autoplay_timer()
-
-    def _is_current_playing_image(self):
-        return is_image_file(self._current_media_path())
-
-    def _start_media_transition(self, path):
-        self.is_transitioning = True
-        try:
-            self.engine.player.stop()
-
-            media = self.engine.media(path)
-            self.engine.player.set_media(media)
-            self.engine.player.play()
-            self.is_playing = True
-            QTimer.singleShot(100, self._finish_media_transition)
-        except Exception:
-            logging.error("Błąd podczas startu odtwarzania:", exc_info=True)
-            self.is_transitioning = False
-
-    def _finish_media_transition(self):
-        try:
-            self.engine.player.video_set_adjust_int(vlc.VideoAdjustOption.Enable, 1)
-            self._set_projection_brightness(self.brightness_slider.value() / 100.0)
-            self.engine.player.audio_set_mute(False)
-        except Exception:
-            logging.error("Błąd podczas finalizacji odtwarzania:", exc_info=True)
-        finally:
-            self.is_transitioning = False
+        self.session.set_autoplay(
+            self.autoplay_checkbox.isChecked(), self.image_switch_delay.value()
+        )
 
     def fade_out(self):
-        if self.is_playing and not self.is_transitioning:
+        if self.session.is_playing and not self.session.is_transitioning:
             self._start_fade_out()
 
     def _is_current_playing_audio(self):
-        return is_audio_file(self._current_media_path())
+        return self.session.is_current_audio()
 
     def _start_fade_out(self):
-        self.is_transitioning = True
+        self.session.begin_transition()
         try:
             fade_secs = self._fade_duration()
             steps = max(5, int(fade_secs * 10))
@@ -1007,7 +946,7 @@ class App(QMainWindow):
             self.fade_timer.start(self._fade_state["interval_ms"])
         except Exception:
             logging.error("Błąd podczas startu fade out:", exc_info=True)
-            self.is_transitioning = False
+            self.session.end_transition()
 
     def _fade_out_step(self):
         state = self._fade_state
@@ -1035,46 +974,19 @@ class App(QMainWindow):
         if state and not state["audio_only"]:
             self._set_projection_brightness(state["start_bri"])
         self._fade_state = None
-        self.is_transitioning = False
+        self.session.end_transition()
 
     def toggle_play_pause(self):
-        if self.is_playing:
-            if self.engine.player.get_state() == vlc.State.Playing:
-                self.engine.player.pause()
-            else:
-                self.engine.player.play()
-        else:
+        if not self.session.toggle_play_pause():
             self.play_media()
 
     def stop_media(self, keep_logo=False, after_stop=None):
-        self._stop_image_autoplay_timer()
         if self.fade_timer.isActive() and after_stop is None:
             self.fade_timer.stop()
             self._fade_state = None
-            self.is_transitioning = False
+            self.session.end_transition()
 
-        if self.engine.player.get_state() in (vlc.State.Playing, vlc.State.Paused):
-            # Odpinamy wideo przed audio (na czarny ekran) przed stopem
-            if not keep_logo:
-                self._set_projection_brightness(0.0)
-
-            # Zerujemy odtwarzacz matematycznie, BEZ wyciszania gniazda sprzętowego
-            has_audio = (self.engine.player.audio_get_track_count() > 0)
-            if has_audio:
-                self.engine.player.audio_set_volume(0)
-
-            self.engine.player.pause()
-            QTimer.singleShot(50, lambda: self._finish_stop_media(after_stop))
-            return
-
-        self._finish_stop_media(after_stop)
-
-    def _finish_stop_media(self, after_stop=None):
-        self.engine.player.stop()
-        self.is_playing = False
-        self.playlist_model.set_playing_row(-1)
-        if after_stop:
-            after_stop()
+        self.session.stop(keep_logo=keep_logo, after_stop=after_stop)
 
     def play_next_file(self):
         idx = self.playlist.currentIndex()
@@ -1149,20 +1061,13 @@ class App(QMainWindow):
                                self.projection_window.logo_video_widget)
 
     def toggle_logo_overlay(self, checked):
-        path = self._current_media_path()
+        path = self.session.current_media_path()
         self._set_projection_mode_for_path(path)
 
     def update_logo_visibility(self):
-        path = self._current_media_path()
+        path = self.session.current_media_path()
         self._set_projection_mode_for_path(path)
 
-    def set_position(self, v):
-        self.engine.player.set_position(v / 1000.0)
-
-    def slider_released(self):
-        self.user_is_seeking = False
-        self.set_position(self.progress_slider.value())
-    
     def filter_playlist(self, text):
         self.proxy_model.setFilterRegularExpression(text)
 

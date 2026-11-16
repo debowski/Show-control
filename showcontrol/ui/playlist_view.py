@@ -18,10 +18,15 @@ class PlaylistModel(QAbstractListModel):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._store = PlaylistStore()
+        self._playing_row = -1
+
+    @property
+    def store(self):
+        return self._store
 
     @property
     def playing_row(self):
-        return self._store.playing_row
+        return self._playing_row
 
     def entries(self):
         return self._store.rows()
@@ -188,11 +193,13 @@ class PlaylistModel(QAbstractListModel):
             self.dataChanged.emit(self.index(top, 0), self.index(bottom, 0))
 
     def set_playing_row(self, row):
-        old_row = self._store.set_playing_row(row)
+        """Wskaźnik do narysowania; właścicielem stanu jest sesja."""
+        old_row = self._playing_row
+        self._playing_row = row
 
-        if old_row != -1:
+        if 0 <= old_row < self.rowCount():
             self.dataChanged.emit(self.index(old_row, 0), self.index(old_row, 0))
-        if row != -1:
+        if 0 <= row < self.rowCount():
             self.dataChanged.emit(self.index(row, 0), self.index(row, 0))
 
 

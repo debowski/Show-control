@@ -31,6 +31,12 @@ dla operatora idą jako patch, bo operator aktualizuje ręcznie i nie ma czego
   `sys.platform.startswith("win")` — zostaje ścieżka Windows.
 - Zapis i odczyt projektu korzystają z `domain/project_schema.py` zamiast
   sięgać po `PlaylistModel._data`. Format JSON bez zmian.
+- `playback/session.py` przejmuje transport, autoplay, polling 500 ms i strażnik
+  przejścia. `App` traci `is_playing`, `is_transitioning`, `user_is_seeking`
+  i `_current_media_path()`. `playing_row` przechodzi z `PlaylistStore` do
+  sesji; model dostaje wyłącznie wskaźnik do narysowania. Czyste reguły
+  przesunięcia indeksu przy zmianach wierszy zostają w `domain/playlist.py`.
+  `SessionState` + sygnał `failure` są seamem recovery dla fazy B.
 
 - `GLOSSARY.md`, „Precedencja": F9 jest włącznikiem overlaya globalnego, nie
   nadpisaniem overlaya pozycji. Poprzednia wersja opisywała zamierzenie, nie

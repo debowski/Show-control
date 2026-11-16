@@ -1,4 +1,4 @@
-"""Punkt startowy aplikacji: QApplication, QSettings, motyw i ikony."""
+"""Punkt startowy aplikacji: QApplication, menedżer ustawień, motyw i ikony."""
 
 import logging
 import os
@@ -7,16 +7,13 @@ import sys
 # Wyciszenie nieszkodliwych ostrzeżeń Qt na Windowsie dotyczących obramowania okien
 os.environ["QT_LOGGING_RULES"] = "qt.qpa.window=false"
 
-from PyQt6.QtCore import QSettings
 from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QApplication
 
-from showcontrol.ui.theme import DEFAULT_THEME, generate_stylesheet
+from showcontrol.persistence.settings import create_settings_manager
+from showcontrol.ui.theme import generate_stylesheet
 
 logging.basicConfig(level=logging.ERROR, format='%(asctime)s - %(levelname)s - %(message)s')
-
-SETTINGS_ORGANIZATION = "ShowControl"
-SETTINGS_APPLICATION = "OperatorConsole"
 
 
 def resource_path(filename):
@@ -36,10 +33,10 @@ def set_window_icon(widget, filename):
 
 
 def create_application(argv):
-    """Tworzy QApplication i pojedynczy QSettings, od razu nakłada motyw."""
+    """Tworzy QApplication i menedżer ustawień, od razu nakłada motyw."""
     app = QApplication(argv)
-    settings = QSettings(SETTINGS_ORGANIZATION, SETTINGS_APPLICATION)
-    theme_key = settings.value("theme", DEFAULT_THEME)
+    settings = create_settings_manager()
+    theme_key = settings.get_theme()
     app.setProperty("theme_key", theme_key)
     app.setStyleSheet(generate_stylesheet(theme_key))
     return app, settings

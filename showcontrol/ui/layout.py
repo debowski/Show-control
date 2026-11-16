@@ -14,12 +14,11 @@ from PyQt6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox,
                              QPushButton, QSizePolicy, QSlider, QSpinBox,
                              QVBoxLayout, QWidget)
 
-from showcontrol.ui.i18n import (DEFAULT_LANGUAGE, LANGUAGE_KEYS,
-                                 LANGUAGE_NAMES)
+from showcontrol.ui.i18n import LANGUAGE_KEYS, LANGUAGE_NAMES
 from showcontrol.ui.peak_meter import StereoPeakMeter
 from showcontrol.ui.playlist_view import (PlaylistFilterProxyModel,
                                           PlaylistItemDelegate, PlaylistView)
-from showcontrol.ui.theme import DEFAULT_THEME, THEME_KEYS, THEMES
+from showcontrol.ui.theme import THEME_KEYS, THEMES
 
 
 def build_main_layout(window):
@@ -331,7 +330,7 @@ def _build_settings(window):
     window.settings_group = settings_group
     set_layout = QVBoxLayout(settings_group)
     # Language selector will be added here; default set from settings
-    window.language = window.settings.value("language", DEFAULT_LANGUAGE)
+    window.language = window.settings.get_language()
 
     window.autoplay_checkbox = QCheckBox()
     # we'll set texts after building UI via apply_translations()
@@ -365,7 +364,7 @@ def _build_settings(window):
     window.theme_combo = QComboBox()
     for key in THEME_KEYS:
         window.theme_combo.addItem(THEMES[key]["name"], key)
-    saved_theme = window.settings.value("theme", DEFAULT_THEME)
+    saved_theme = window.settings.get_theme()
     saved_idx = THEME_KEYS.index(saved_theme) if saved_theme in THEME_KEYS else 0
     window.theme_combo.setCurrentIndex(saved_idx)
     window.theme_combo.currentIndexChanged.connect(window._on_theme_changed)

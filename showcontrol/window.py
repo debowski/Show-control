@@ -4,7 +4,6 @@ Logika VLC, fade i transportu żyje w ``playback/``. Tutaj zostaje wyłącznie
 sklejenie modułów, obsługa zdarzeń UI i zapis/odczyt projektu.
 """
 
-import json
 import os
 import sys
 
@@ -16,8 +15,8 @@ from PyQt6.QtWidgets import (QApplication, QFileDialog, QListView,
 from showcontrol import __version__
 from showcontrol.bootstrap import set_window_icon
 from showcontrol.domain.media import is_audio_file
-from showcontrol.domain.project_schema import (Project, ProjectItem,
-                                                project_from_data, project_to_data)
+from showcontrol.domain.project_schema import Project, ProjectItem
+from showcontrol.persistence.project_io import load_project_file, save_project_file
 from showcontrol.playback.engine import Engine
 from showcontrol.playback.fade import FadeController
 from showcontrol.playback.overlay import OverlayController
@@ -94,7 +93,7 @@ class MainWindow(QMainWindow):
         self._meter_timer.start()
         self.session.start()
 
-        last_project = self.settings.value("last_project", "")
+        last_project = self.settings.get_last_project()
         if last_project and os.path.exists(last_project):
             # Używamy QTimer by załadować projekt po pełnym zainicjalizowaniu UI
             QTimer.singleShot(100, lambda: self._load_project_file(last_project))
@@ -186,7 +185,7 @@ class MainWindow(QMainWindow):
         if not key:
             return
         self.language = key
-        self.settings.setValue('language', key)
+        self.settings.set_language(key)
         self.apply_translations()
 
     def setup_button_feedback(self, *buttons):
@@ -545,9 +544,8 @@ class MainWindow(QMainWindow):
                     ),
                     overlay_path=self.overlay.global_asset,
                 )
-                with open(path, 'w', encoding='utf-8') as f:
-                    json.dump(project_to_data(project), f, ensure_ascii=False, indent=4)
-                self.settings.setValue("last_project", path)
+                save_project_file(path, project)
+                self.settings.set_last_project(path)
                 self.update_window_title(path)
             except Exception as e:
                 QMessageBox.critical(
@@ -565,10 +563,7 @@ class MainWindow(QMainWindow):
 
     def _load_project_file(self, path):
         try:
-            with open(path, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-
-            project = project_from_data(data)
+            project = load_project_file(path)
             self.force_overlay_btn.setChecked(False)
 
             if project.migrated_overlay_count:
@@ -604,7 +599,7 @@ class MainWindow(QMainWindow):
             self._sync_force_overlay_control()
             self._set_projection_mode_for_path(self.session.current_media_path())
 
-            self.settings.setValue("last_project", path)
+            self.settings.set_last_project(path)
             self.update_window_title(path)
         except Exception as e:
             QMessageBox.critical(
@@ -626,7 +621,7 @@ class MainWindow(QMainWindow):
         app.setStyleSheet(generate_stylesheet(theme_key))
         # Delegate and BackgroundRole read tokens during paint, so repaint now.
         self.playlist.viewport().update()
-        self.settings.setValue("theme", theme_key)
+        self.settings.set_theme(theme_key)
 
     def closeEvent(self, event):
         self.projection_window.close()

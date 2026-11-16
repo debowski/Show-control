@@ -70,7 +70,7 @@ class OverlayController:
         return plan
 
     def tick(self):
-        path = self._global_asset
+        path = self._loaded_asset
         if path and os.path.exists(path) and not is_image_file(path):
             if self._engine.overlay_player.get_state() in (vlc.State.Ended, vlc.State.Stopped):
                 self._engine.overlay_player.play()
@@ -101,6 +101,7 @@ class OverlayController:
             )
             media = self._engine.media(path)
             # Overlay media is always played without audio
+            media.add_option(':no-audio')
             media.add_option('no-audio')
             media.add_option('input-repeat=65535')
             self._engine.overlay_player.set_media(media)

@@ -24,6 +24,7 @@ class Engine:
         self.player.audio_set_volume(0)  # Konfiguracja zabezpieczająca na start
         self.player.video_set_adjust_int(vlc.VideoAdjustOption.Enable, 1)
         self.overlay_player = self.instance.media_player_new()
+        self.overlay_player.audio_output_set('adummy')
         self.overlay_player.audio_set_volume(0)
         self.overlay_player.video_set_adjust_int(vlc.VideoAdjustOption.Enable, 1)
 
@@ -53,7 +54,6 @@ class Engine:
 
     def mute_overlay(self):
         self.overlay_player.audio_set_volume(0)
-        self.overlay_player.audio_set_mute(True)
 
     @staticmethod
     def _apply_brightness(player, brightness):

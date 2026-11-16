@@ -17,8 +17,20 @@ dla operatora idą jako patch, bo operator aktualizuje ręcznie i nie ma czego
   Windows-only, fade 0–1 s, F9 nadpisuje overlay.
 - `AGENTS.md`, `pyproject.toml` (ruff + pytest).
 - Gałąź `refactor/plan`.
+- `tests/` — 3 pliki: precedencja overlaya, schemat projektu, operacje na
+  playliście. Bez Qt i VLC, `pytest` w CI-lokalnym zakresie.
 
 ### Zmienione
+
+- Monolit `main.py` rozbity na pakiet `showcontrol/`: `bootstrap.py` tworzy
+  jedno `QApplication` i jedno `QSettings`, `ui/theme.py` i `ui/i18n.py` to
+  przeniesienie 1:1, `domain/` (media, playlista, reguły overlaya, schemat
+  projektu) nie importuje Qt ani VLC. `main.py` to 8-liniowy bootstrap.
+- `playback/engine.py` przejmuje `vlc.Instance`, dwa odtwarzacze, `set_hwnd`,
+  głośność, jasność i wyciszenie overlaya. Usunięte gałęzie
+  `sys.platform.startswith("win")` — zostaje ścieżka Windows.
+- Zapis i odczyt projektu korzystają z `domain/project_schema.py` zamiast
+  sięgać po `PlaylistModel._data`. Format JSON bez zmian.
 
 - `GLOSSARY.md`, „Precedencja": F9 jest włącznikiem overlaya globalnego, nie
   nadpisaniem overlaya pozycji. Poprzednia wersja opisywała zamierzenie, nie

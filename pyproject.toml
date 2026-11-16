@@ -1,6 +1,5 @@
-# Tabela [project] celowo nieobecna do fazy 1 — pakiet showcontrol/ jeszcze
-# nie istnieje, a ten plik konfiguruje wyłącznie narzędzia.
-# Zobacz docs/refactor-plan.md, faza 1.
+# Tabela [project] celowo nieobecna do fazy 7. Wersja ma jedno źródło:
+# showcontrol/__init__.py:__version__. Ten plik konfiguruje tylko narzędzia.
 
 [tool.ruff]
 line-length = 120

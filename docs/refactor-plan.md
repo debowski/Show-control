@@ -1,6 +1,6 @@
 # Plan refaktoru Show Control
 
-**Status:** zatwierdzony kierunek, faza 0 nierozpoczęta
+**Status:** zatwierdzony kierunek; fazy 0–2 ukończone (2026-11-16)
 **Punkt wyjścia:** `v0.7.1` (`5cfcc81`)
 **Właściciel:** solowy maintainer
 **Zakres:** A (rozbicie monolitu) + C (model domenowy) → potem B (niezawodność)

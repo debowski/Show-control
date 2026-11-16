@@ -32,7 +32,7 @@ def project_from_data(data):
         overlay_path = None
     elif isinstance(data, dict):
         raw_items = data.get('files', [])
-        overlay_path = data.get('logo', None)
+        overlay_path = data.get('overlay', data.get('logo', None))
     else:
         raw_items = []
         overlay_path = None
@@ -63,5 +63,5 @@ def project_to_data(project):
             }
             for item in project.items
         ],
-        "logo": project.overlay_path,
+        "overlay": project.overlay_path,
     }

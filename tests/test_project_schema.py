@@ -15,11 +15,19 @@ def test_bare_list_is_legacy_format():
 def test_dict_format_reads_files_and_global_overlay():
     data = {
         "files": [{"path": "a.mp4", "overlay": True, "overlay_path": "item.png"}],
-        "logo": "global.png",
+        "overlay": "global.png",
     }
     project = project_from_data(data)
     assert project.items == (ProjectItem("a.mp4", True, "item.png"),)
     assert project.overlay_path == "global.png"
+
+
+def test_legacy_logo_key_still_reads_for_backward_compatibility():
+    project = project_from_data({
+        "files": [{"path": "a.mp4"}],
+        "logo": "legacy.png",
+    })
+    assert project.overlay_path == "legacy.png"
 
 
 def test_mixed_list_supports_strings_and_dicts():
@@ -75,7 +83,7 @@ def test_unknown_root_type_gives_empty_project():
     assert project_from_data(42) == Project(())
 
 
-def test_project_to_data_has_v072_shape():
+def test_project_to_data_has_overlay_shape():
     project = Project(
         items=(ProjectItem("a.mp4", True, "item.png"), ProjectItem("b.mp3")),
         overlay_path="global.png",
@@ -85,7 +93,7 @@ def test_project_to_data_has_v072_shape():
             {"path": "a.mp4", "overlay": True, "overlay_path": "item.png"},
             {"path": "b.mp3", "overlay": False, "overlay_path": None},
         ],
-        "logo": "global.png",
+        "overlay": "global.png",
     }
 
 
@@ -109,4 +117,4 @@ def test_round_trip_legacy_list_gets_new_shape():
     data = project_to_data(project)
     assert isinstance(data, dict)
     assert "files" in data
-    assert "logo" in data
+    assert "overlay" in data

@@ -25,6 +25,7 @@ from showcontrol.playback.session import PlaybackSession
 from showcontrol.ui.i18n import DEFAULT_LANGUAGE, get_t as translate
 from showcontrol.ui.playlist_view import (PlaylistFilterProxyModel, PlaylistItemDelegate,
                                           PlaylistModel, PlaylistView)
+from showcontrol.ui.peak_meter import StereoPeakMeter, AudioPeakProvider
 from showcontrol.ui.theme import DEFAULT_THEME, THEME_KEYS, THEMES, generate_stylesheet
 
 PROJECT_FILE_FILTER = "JSON (*.json)"
@@ -348,6 +349,11 @@ class App(QMainWindow):
         self.init_ui()
         self.fade = FadeController(self.engine, self._set_projection_brightness, parent=self)
         self.fade.finished.connect(self._on_fade_finished)
+        self.audio_peak_provider = AudioPeakProvider()
+        self._meter_timer = QTimer(self)
+        self._meter_timer.setInterval(30)
+        self._meter_timer.timeout.connect(self._update_audio_meter)
+        self._meter_timer.start()
         self.session.start()
         
         last_project = self.settings.value("last_project", "")
@@ -537,6 +543,20 @@ class App(QMainWindow):
         audio_group = QGroupBox("Sterowanie")
         audio_main_layout = QHBoxLayout(audio_group)
         
+        # --- Miernik Szczytowy Stereo (IEC dBFS) ---
+        meter_layout = QVBoxLayout()
+        meter_title = QLabel("📊 Miernik")
+        meter_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        meter_title.setStyleSheet("font-size: 8pt; color: #aaaaaa;")
+        self.meter_peak_label = QLabel("-∞ dBFS")
+        self.meter_peak_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.meter_peak_label.setStyleSheet("font-size: 8pt; color: #aaaaaa; font-family: monospace;")
+        self.peak_meter = StereoPeakMeter()
+        self.peak_meter.peak_changed.connect(self._on_peak_changed)
+        meter_layout.addWidget(meter_title)
+        meter_layout.addWidget(self.meter_peak_label)
+        meter_layout.addWidget(self.peak_meter, alignment=Qt.AlignmentFlag.AlignHCenter)
+
         # --- Suwak głośności ---
         vol_slider_layout = QVBoxLayout()
         vol_title = QLabel("🔊 Głośność")
@@ -587,6 +607,8 @@ class App(QMainWindow):
         bri_slider_layout.addWidget(self.brightness_slider, alignment=Qt.AlignmentFlag.AlignHCenter)
 
         audio_main_layout.addStretch()
+        audio_main_layout.addLayout(meter_layout)
+        audio_main_layout.addSpacing(12)
         audio_main_layout.addLayout(vol_slider_layout)
         audio_main_layout.addSpacing(12)
         audio_main_layout.addLayout(bri_slider_layout)
@@ -742,7 +764,9 @@ class App(QMainWindow):
         # Update QLabel texts for small labels (volume, fade, brightness, image speed, theme, language)
         for lbl in self.findChildren(QLabel):
             txt = lbl.text()
-            if "Głośność" in txt or "Volume" in txt:
+            if "Miernik" in txt or "Meter" in txt:
+                lbl.setText(self.get_t('meter'))
+            elif "Głośność" in txt or "Volume" in txt:
                 lbl.setText(self.get_t('volume'))
             elif "Jasność" in txt or "Brightness" in txt:
                 lbl.setText(self.get_t('brightness'))
@@ -905,9 +929,23 @@ class App(QMainWindow):
             if elapsed_ms < 2000:
                 self.engine.player.audio_set_volume(self.volume_slider.value())
 
+    def _update_audio_meter(self):
+        is_playing = self.session.is_playing and not self.session.is_transitioning
+        if self.session.is_current_image():
+            is_playing = False
+        db_l, db_r = self.audio_peak_provider.get_levels(is_playing, self.session.volume)
+        self.peak_meter.set_levels(db_l, db_r)
+
+    def _on_peak_changed(self, peak_db):
+        if peak_db <= -59.5:
+            self.meter_peak_label.setText("-∞ dBFS")
+        else:
+            self.meter_peak_label.setText(f"{peak_db:.1f} dB")
+
     def _on_idle(self):
         self.progress_slider.setValue(0)
         self.time_label.setText(EMPTY_TIME_LABEL)
+        self.peak_meter.reset()
 
     def _on_stopping(self, keep_overlay):
         if not keep_overlay:

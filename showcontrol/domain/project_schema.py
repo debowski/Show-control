@@ -14,6 +14,7 @@ class ProjectItem:
 class Project:
     items: tuple
     overlay_path: str | None = None
+    migrated_overlay_count: int = 0
 
 
 def project_from_data(data):
@@ -22,6 +23,9 @@ def project_from_data(data):
     Elementy listy mogą być stringami (legacy) albo słownikami. Zachowanie
     dla uszkodzonych danych jest takie jak w `v0.7.2`: element inny niż
     string/słownik powoduje wyjątek, który wołający pokazuje jako błąd odczytu.
+
+    Migracja ADR 0005: pozycja z `overlay: true` bez `overlay_path` traci flagę,
+    bo checkbox znaczy teraz wyłącznie „używa własnego assetu".
     """
     if isinstance(data, list):
         raw_items = data
@@ -34,16 +38,18 @@ def project_from_data(data):
         overlay_path = None
 
     items = []
+    migrated_overlay_count = 0
     for raw in raw_items:
         if isinstance(raw, str):
             items.append(ProjectItem(raw))
         else:
-            items.append(ProjectItem(
-                raw.get('path', ''),
-                raw.get('overlay', False),
-                raw.get('overlay_path', None),
-            ))
-    return Project(tuple(items), overlay_path)
+            overlay = raw.get('overlay', False)
+            item_overlay_path = raw.get('overlay_path', None)
+            if overlay and not item_overlay_path:
+                overlay = False
+                migrated_overlay_count += 1
+            items.append(ProjectItem(raw.get('path', ''), overlay, item_overlay_path))
+    return Project(tuple(items), overlay_path, migrated_overlay_count)
 
 
 def project_to_data(project):

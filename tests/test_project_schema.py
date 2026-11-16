@@ -37,10 +37,31 @@ def test_item_defaults_when_keys_are_missing():
     assert project.items[0].overlay_path is None
 
 
-def test_item_without_path_becomes_empty_string():
+def test_item_without_path_becomes_empty_string_and_loses_orphan_overlay_flag():
     project = project_from_data({"files": [{"overlay": True}]})
     assert project.items[0].path == ""
+    assert project.items[0].overlay is False
+    assert project.migrated_overlay_count == 1
+
+
+def test_orphan_overlay_flag_is_cleared_and_counted():
+    project = project_from_data({
+        "files": [
+            {"path": "a.mp4", "overlay": True, "overlay_path": None},
+            {"path": "b.mp4", "overlay": False, "overlay_path": None},
+            {"path": "c.mp4", "overlay": True, "overlay_path": "item.png"},
+        ]
+    })
+    assert [item.overlay for item in project.items] == [False, False, True]
+    assert project.migrated_overlay_count == 1
+
+
+def test_item_with_overlay_path_keeps_flag():
+    project = project_from_data({
+        "files": [{"path": "a.mp4", "overlay": True, "overlay_path": "item.png"}]
+    })
     assert project.items[0].overlay is True
+    assert project.migrated_overlay_count == 0
 
 
 def test_empty_dict_gives_empty_project():

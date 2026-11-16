@@ -140,34 +140,49 @@ def test_overlay_accessors_for_valid_and_invalid_rows():
     assert store.overlay_path_for_row(-1) is None
 
 
-def test_set_overlay_toggles_item_flag():
+def test_set_overlay_toggles_item_flag_when_asset_exists():
     store = _store("a.mp4")
+    store.set_overlay_path(0, "item.png")
     store.set_overlay(0, True)
     assert store.overlay_for_row(0) is True
     store.set_overlay(0, False)
     assert store.overlay_for_row(0) is False
 
 
-def test_set_overlay_path_sets_flag_and_path():
+def test_set_overlay_is_ignored_without_own_asset():
+    store = _store("a.mp4")
+    store.set_overlay(0, True)
+    assert store.overlay_for_row(0) is False
+
+
+def test_set_overlay_path_does_not_enable_the_flag():
     store = _store("a.mp4")
     store.set_overlay_path(0, "item.png")
-    assert store.overlay_for_row(0) is True
+    assert store.overlay_for_row(0) is False
     assert store.overlay_path_for_row(0) == "item.png"
 
 
-def test_set_overlay_path_none_clears_flag():
+def test_set_overlay_path_none_clears_flag_and_path():
     store = _store("a.mp4")
     store.set_overlay_path(0, "item.png")
+    store.set_overlay(0, True)
     store.set_overlay_path(0, None)
     assert store.overlay_for_row(0) is False
     assert store.overlay_path_for_row(0) is None
 
 
-def test_set_overlay_state_sets_flag_independently_of_path():
+def test_set_overlay_state_requires_own_asset():
     store = _store("a.mp4")
     store.set_overlay_state(0, True, None)
-    assert store.overlay_for_row(0) is True
+    assert store.overlay_for_row(0) is False
     assert store.overlay_path_for_row(0) is None
+
+
+def test_set_overlay_state_enables_flag_with_asset():
+    store = _store("a.mp4")
+    store.set_overlay_state(0, True, "item.png")
+    assert store.overlay_for_row(0) is True
+    assert store.overlay_path_for_row(0) == "item.png"
 
 
 def test_set_overlay_methods_ignore_out_of_range_rows():

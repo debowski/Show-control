@@ -123,15 +123,18 @@ class PlaylistStore:
 
     def set_overlay(self, row, enabled):
         if 0 <= row < len(self._entries):
-            self._entries[row].overlay = enabled
+            entry = self._entries[row]
+            entry.overlay = bool(enabled and entry.overlay_path)
 
     def set_overlay_path(self, row, path):
         if 0 <= row < len(self._entries):
             self._entries[row].overlay_path = path
-            self._entries[row].overlay = bool(path)
+            if not path:
+                self._entries[row].overlay = False
 
     def set_overlay_state(self, row, overlay, overlay_path):
         if 0 <= row < len(self._entries):
-            self._entries[row].overlay = overlay
-            self._entries[row].overlay_path = overlay_path
+            entry = self._entries[row]
+            entry.overlay = bool(overlay and overlay_path)
+            entry.overlay_path = overlay_path
 

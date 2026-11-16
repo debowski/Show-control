@@ -716,6 +716,7 @@ class App(QMainWindow):
         self.fullscreen_btn.setToolTip(f"{self.get_t('fullscreen')} ({shortcut_label('fullscreen')})")
         self.overlay_on_audio_checkbox.setText(f"{self.get_t('overlay_on_audio')} ({shortcut_label('overlay_on_audio')})")
         self.force_overlay_btn.setText(f"{self.get_t('force_overlay')} ({shortcut_label('force_overlay')})")
+        self._sync_force_overlay_control()
 
     def update_shortcuts(self):
         remote_enabled = self.remote_checkbox.isChecked()
@@ -844,7 +845,7 @@ class App(QMainWindow):
 
     def _set_projection_mode_for_path(self, path):
         self.overlay.apply(
-            global_overlay_enabled=bool(
+            force_overlay_enabled=bool(
                 getattr(self, 'force_overlay_btn', None)
                 and self.force_overlay_btn.isChecked()
             ),
@@ -922,6 +923,7 @@ class App(QMainWindow):
         path, _ = QFileDialog.getOpenFileName(self, self.get_t('select_overlay_dialog'), "", filter_str)
         if path:
             self.overlay.set_global_asset(path)
+            self._sync_force_overlay_control()
             self._set_projection_mode_for_path(self.session.current_media_path())
 
     def toggle_projection_fullscreen(self):
@@ -944,8 +946,19 @@ class App(QMainWindow):
                                self.projection_window.overlay_video_widget)
 
     def toggle_overlay(self, checked):
+        if checked and not self.overlay.global_asset:
+            self.force_overlay_btn.setChecked(False)
+            return
         path = self.session.current_media_path()
         self._set_projection_mode_for_path(path)
+
+    def _sync_force_overlay_control(self):
+        enabled = bool(self.overlay.global_asset)
+        if not enabled and self.force_overlay_btn.isChecked():
+            self.force_overlay_btn.setChecked(False)
+        self.force_overlay_btn.setEnabled(enabled)
+        key = 'force_overlay_tooltip' if enabled else 'force_overlay_disabled'
+        self.force_overlay_btn.setToolTip(self.get_t(key))
 
     def update_overlay_visibility(self):
         path = self.session.current_media_path()
@@ -983,6 +996,15 @@ class App(QMainWindow):
                 data = json.load(f)
 
             project = project_from_data(data)
+            self.force_overlay_btn.setChecked(False)
+
+            if project.migrated_overlay_count:
+                QMessageBox.information(
+                    self,
+                    self.get_t('overlay_migration_title'),
+                    self.get_t('overlay_migration_message',
+                              count=project.migrated_overlay_count),
+                )
 
             self.playlist_model.clear()
             existing_files = []
@@ -1005,7 +1027,9 @@ class App(QMainWindow):
 
             if project.overlay_path and os.path.exists(project.overlay_path):
                 self.overlay.set_global_asset(project.overlay_path)
-                self._set_projection_mode_for_path(self.session.current_media_path())
+
+            self._sync_force_overlay_control()
+            self._set_projection_mode_for_path(self.session.current_media_path())
 
             self.settings.setValue("last_project", path)
             self.update_window_title(path)

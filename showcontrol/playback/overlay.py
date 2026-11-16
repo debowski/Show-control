@@ -32,11 +32,11 @@ class OverlayController:
             return True
         return False
 
-    def apply(self, *, global_overlay_enabled, item_overlay_enabled,
+    def apply(self, *, force_overlay_enabled, item_overlay_enabled,
               item_overlay_path, is_audio, overlay_on_audio_enabled,
               brightness):
         plan = projection_plan(
-            global_overlay_enabled=global_overlay_enabled,
+            force_overlay_enabled=force_overlay_enabled,
             item_overlay_enabled=item_overlay_enabled,
             item_overlay_path=item_overlay_path,
             is_audio=is_audio,

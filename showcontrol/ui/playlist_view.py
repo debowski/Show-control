@@ -55,6 +55,8 @@ class PlaylistModel(QAbstractListModel):
                 tooltip += " [nakładka globalna]"
             return tooltip
         elif role == Qt.ItemDataRole.CheckStateRole:
+            if not entry.overlay_path:
+                return None
             return Qt.CheckState.Checked if entry.overlay else Qt.CheckState.Unchecked
         elif role == Qt.ItemDataRole.BackgroundRole:
             if row == self.playing_row:
@@ -69,6 +71,8 @@ class PlaylistModel(QAbstractListModel):
         if not index.isValid():
             return False
         if role == Qt.ItemDataRole.CheckStateRole:
+            if not self._store.overlay_path_for_row(index.row()):
+                return False
             checked = (value == Qt.CheckState.Checked) if isinstance(value, Qt.CheckState) else bool(value)
             self._store.set_overlay(index.row(), checked)
             self.dataChanged.emit(index, index, [role])
@@ -78,7 +82,10 @@ class PlaylistModel(QAbstractListModel):
     def flags(self, index):
         default_flags = super().flags(index)
         if index.isValid():
-            return default_flags | Qt.ItemFlag.ItemIsDragEnabled | Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsUserCheckable
+            flags = default_flags | Qt.ItemFlag.ItemIsDragEnabled | Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEnabled
+            if self._store.overlay_path_for_row(index.row()):
+                flags |= Qt.ItemFlag.ItemIsUserCheckable
+            return flags
         return default_flags | Qt.ItemFlag.ItemIsDropEnabled
 
     def supportedDropActions(self):

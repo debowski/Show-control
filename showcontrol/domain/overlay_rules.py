@@ -11,20 +11,22 @@ class ProjectionPlan:
     asset_path: str | None
 
 
-def projection_plan(*, global_overlay_enabled, item_overlay_enabled,
+def projection_plan(*, force_overlay_enabled, item_overlay_enabled,
                     item_overlay_path, is_audio, overlay_on_audio_enabled,
                     global_overlay_path):
-    """Rozstrzyga tryb projekcji dla bieżącej pozycji.
+    """Rozstrzyga tryb projekcji według priorytetu z ADR 0005.
 
-    Odwzorowuje zachowanie `v0.7.2`: warunki są alternatywą (F9 tylko włącza
-    overlay globalny), a asset pozycji wygrywa z globalnym. ADR 0005 zmienia
-    semantykę F9 w fazie 3 — wtedy ten test się zmieni.
+    F9 (wymuszony overlay) wygrywa z overlaya pozycji i z F10. Overlay pozycji
+    liczy się tylko z własnym assetem; bez assetu checkbox jest nieaktywny.
+    F10 działa wyłącznie przy wyłączonym F9.
     """
-    show_overlay = (
-        global_overlay_enabled
-        or item_overlay_enabled
-        or (is_audio and overlay_on_audio_enabled)
-    )
-    if not show_overlay:
-        return ProjectionPlan(False, None)
-    return ProjectionPlan(True, item_overlay_path or global_overlay_path)
+    if force_overlay_enabled and global_overlay_path:
+        return ProjectionPlan(True, global_overlay_path)
+
+    if item_overlay_enabled and item_overlay_path:
+        return ProjectionPlan(True, item_overlay_path)
+
+    if is_audio and overlay_on_audio_enabled:
+        return ProjectionPlan(True, global_overlay_path)
+
+    return ProjectionPlan(False, None)

@@ -43,8 +43,8 @@ KEYBOARD_SHORTCUTS = {
     "save_project": {"keys": [Qt.Key.Key_F12]},
     "fade_out": {"keys": [Qt.Key.Key_F1]},
     "fullscreen": {"keys": [Qt.Key.Key_F11]},
-    "logo_audio": {"keys": [Qt.Key.Key_F10]},
-    "logo_overlay": {"keys": [Qt.Key.Key_F9]},
+    "overlay_on_audio": {"keys": [Qt.Key.Key_F10]},
+    "force_overlay": {"keys": [Qt.Key.Key_F9]},
     "previous": {
         "keys": [Qt.Key.Key_F6],
         "navigation": {
@@ -105,11 +105,11 @@ def navigation_shortcut(name, remote_enabled):
     mode = "remote" if remote_enabled else "standard"
     return KEYBOARD_SHORTCUTS[name]["navigation"][mode]
 
-class LogoViewer(QWidget):
+class OverlayViewer(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.logo_pixmap = None
-        self.show_logo = True
+        self.overlay_pixmap = None
+        self.show_overlay = True
         self.opacity = 1.0
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
 
@@ -117,8 +117,8 @@ class LogoViewer(QWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         w, h = self.width(), self.height()
-        if self.show_logo and self.logo_pixmap and not self.logo_pixmap.isNull():
-            scaled = self.logo_pixmap.scaled(w, h, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+        if self.show_overlay and self.overlay_pixmap and not self.overlay_pixmap.isNull():
+            scaled = self.overlay_pixmap.scaled(w, h, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
             painter.setOpacity(self.opacity)
             painter.drawPixmap(int((w - scaled.width())/2), int((h - scaled.height())/2), scaled)
 
@@ -129,24 +129,24 @@ class ProjectionWindow(QWidget):
         self.setWindowTitle("Projekcja - Odtwarzacz")
         self.setStyleSheet("background-color: black;")
         self.video_widget = QWidget()
-        self.logo_container = QWidget()
-        self.logo_stacked_layout = QStackedLayout(self.logo_container)
-        self.logo_stacked_layout.setContentsMargins(0, 0, 0, 0)
-        self.logo_viewer = LogoViewer()
-        self.logo_video_widget = QWidget()
-        self.logo_stacked_layout.addWidget(self.logo_viewer)
-        self.logo_stacked_layout.addWidget(self.logo_video_widget)
+        self.overlay_container = QWidget()
+        self.overlay_stacked_layout = QStackedLayout(self.overlay_container)
+        self.overlay_stacked_layout.setContentsMargins(0, 0, 0, 0)
+        self.overlay_viewer = OverlayViewer()
+        self.overlay_video_widget = QWidget()
+        self.overlay_stacked_layout.addWidget(self.overlay_viewer)
+        self.overlay_stacked_layout.addWidget(self.overlay_video_widget)
         self.stacked_layout = QStackedLayout(self)
         self.stacked_layout.addWidget(self.video_widget)
-        self.stacked_layout.addWidget(self.logo_container)
-        self.set_mode_video()
+        self.stacked_layout.addWidget(self.overlay_container)
+        self.set_mode_media()
         set_window_icon(self, "ikona_bw.ico")
 
-    def set_mode_video(self):
+    def set_mode_media(self):
         self.stacked_layout.setCurrentWidget(self.video_widget)
         
-    def set_mode_audio(self):
-        self.stacked_layout.setCurrentWidget(self.logo_container)
+    def set_mode_overlay(self):
+        self.stacked_layout.setCurrentWidget(self.overlay_container)
         
     def mouseDoubleClickEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
@@ -191,13 +191,13 @@ class App(QMainWindow):
         self.projection_window.move_to_second_screen()
         self.projection_window.show()
         self.engine.attach(self.projection_window.video_widget,
-                           self.projection_window.logo_video_widget)
+                           self.projection_window.overlay_video_widget)
 
         self.playlist_model = PlaylistModel(self)
         self.session = PlaybackSession(
             self.engine, self.playlist_model.store,
             advance=self.play_next_file,
-            overlay_tick=self._check_logo_player_status,
+            overlay_tick=self._check_overlay_player_status,
             parent=self,
         )
         self.session.playing_row_changed.connect(self.playlist_model.set_playing_row)
@@ -259,9 +259,9 @@ class App(QMainWindow):
         top_bar.addLayout(mgmt_left)
         top_bar.addStretch()
         
-        self.logo_btn = QPushButton("📁 Wybierz plik nakładki")
-        self.logo_btn.setToolTip("Wybierz obrazek lub grafikę do wyświetlania")
-        self.logo_btn.clicked.connect(self.select_logo)
+        self.overlay_btn = QPushButton("📁 Wybierz plik nakładki")
+        self.overlay_btn.setToolTip("Wybierz obrazek lub grafikę do wyświetlania")
+        self.overlay_btn.clicked.connect(self.select_overlay)
         
         self.window_btn = QPushButton("👁 Ukryj Okno")
         self.window_btn.setObjectName("HideBtn")
@@ -269,7 +269,7 @@ class App(QMainWindow):
         self.window_btn.clicked.connect(self.toggle_projection_window)
         
         mgmt_center = QHBoxLayout()
-        mgmt_center.addWidget(self.logo_btn)
+        mgmt_center.addWidget(self.overlay_btn)
         mgmt_center.addWidget(self.window_btn)
         top_bar.addLayout(mgmt_center)
         
@@ -392,14 +392,14 @@ class App(QMainWindow):
         self.fade_btn.clicked.connect(self.fade_out)
         self.fullscreen_btn = QPushButton()
         self.fullscreen_btn.clicked.connect(self.toggle_projection_fullscreen)
-        self.logo_overlay_btn = QPushButton()
-        self.logo_overlay_btn.setCheckable(True)
-        self.logo_overlay_btn.setObjectName("TransportBtn")
-        self.logo_overlay_btn.setToolTip("Pokaż obrazek zamiast wideo na wyjściu projekcji")
-        self.logo_overlay_btn.toggled.connect(self.toggle_logo_overlay)
+        self.force_overlay_btn = QPushButton()
+        self.force_overlay_btn.setCheckable(True)
+        self.force_overlay_btn.setObjectName("TransportBtn")
+        self.force_overlay_btn.setToolTip("Pokaż overlay zamiast wideo na wyjściu projekcji")
+        self.force_overlay_btn.toggled.connect(self.toggle_overlay)
         view_layout.addWidget(self.fade_btn)
         view_layout.addWidget(self.fullscreen_btn)
-        view_layout.addWidget(self.logo_overlay_btn)
+        view_layout.addWidget(self.force_overlay_btn)
         
         audio_group = QGroupBox("Sterowanie")
         audio_main_layout = QHBoxLayout(audio_group)
@@ -487,9 +487,9 @@ class App(QMainWindow):
         self.remote_checkbox = QCheckBox("Tryb Pilota (L/P)")
         self.remote_checkbox.setChecked(True)
         self.remote_checkbox.stateChanged.connect(lambda: self.update_shortcuts())
-        self.logo_audio_checkbox = QCheckBox()
-        self.logo_audio_checkbox.setChecked(False)
-        self.logo_audio_checkbox.stateChanged.connect(lambda: self.update_logo_visibility())
+        self.overlay_on_audio_checkbox = QCheckBox()
+        self.overlay_on_audio_checkbox.setChecked(False)
+        self.overlay_on_audio_checkbox.stateChanged.connect(lambda: self.update_overlay_visibility())
 
         # --- Theme selector ---
         theme_row = QHBoxLayout()
@@ -507,7 +507,7 @@ class App(QMainWindow):
         set_layout.addWidget(self.autoplay_checkbox)
         set_layout.addLayout(image_speed_layout)
         set_layout.addWidget(self.remote_checkbox)
-        set_layout.addWidget(self.logo_audio_checkbox)
+        set_layout.addWidget(self.overlay_on_audio_checkbox)
         set_layout.addLayout(theme_row)
         # --- Language selector ---
         lang_row = QHBoxLayout()
@@ -532,9 +532,9 @@ class App(QMainWindow):
 
         self.setup_button_feedback(
             self.add_btn, self.remove_btn, self.load_proj_btn, self.save_proj_btn,
-            self.logo_btn, self.window_btn, self.prev_btn, self.play_btn,
+            self.overlay_btn, self.window_btn, self.prev_btn, self.play_btn,
             self.pause_btn, self.stop_btn, self.next_btn, self.fade_btn,
-            self.fullscreen_btn, self.logo_overlay_btn,
+            self.fullscreen_btn, self.force_overlay_btn,
         )
         self.update_shortcut_descriptions()
         self.init_shortcuts()
@@ -561,8 +561,8 @@ class App(QMainWindow):
             "next": lambda: self.activate_button(self.next_btn, self.play_next_file),
             "fade_out": lambda: self.activate_button(self.fade_btn, self.fade_out),
             "fullscreen": lambda: self.activate_button(self.fullscreen_btn, self.toggle_projection_fullscreen),
-            "logo_audio": lambda: self.logo_audio_checkbox.setChecked(not self.logo_audio_checkbox.isChecked()),
-            "logo_overlay": lambda: self.activate_button(self.logo_overlay_btn, lambda: self.logo_overlay_btn.setChecked(not self.logo_overlay_btn.isChecked())),
+            "overlay_on_audio": lambda: self.overlay_on_audio_checkbox.setChecked(not self.overlay_on_audio_checkbox.isChecked()),
+            "force_overlay": lambda: self.activate_button(self.force_overlay_btn, lambda: self.force_overlay_btn.setChecked(not self.force_overlay_btn.isChecked())),
             "save_project": lambda: self.activate_button(self.save_proj_btn, self.save_project),
         }
         for name, callback in f_keys.items():
@@ -586,8 +586,8 @@ class App(QMainWindow):
         self.load_proj_btn.setToolTip(self.get_t('load_project_tooltip'))
         self.save_proj_btn.setText(self.get_t('save_project'))
         self.save_proj_btn.setToolTip(self.get_t('save_project_tooltip'))
-        self.logo_btn.setText(self.get_t('select_overlay'))
-        self.logo_btn.setToolTip(self.get_t('select_overlay_tooltip'))
+        self.overlay_btn.setText(self.get_t('select_overlay'))
+        self.overlay_btn.setToolTip(self.get_t('select_overlay_tooltip'))
         self.window_btn.setText(self.get_t('toggle_projection'))
         self.window_btn.setToolTip(self.get_t('toggle_projection_tooltip'))
 
@@ -634,8 +634,8 @@ class App(QMainWindow):
         self.autoplay_checkbox.setText(self.get_t('autoplay'))
         # remote checkbox
         self.remote_checkbox.setText(self.get_t('remote_mode'))
-        # logo audio checkbox
-        self.logo_audio_checkbox.setText(self.get_t('image_for_audio'))
+        # overlay on audio checkbox
+        self.overlay_on_audio_checkbox.setText(self.get_t('overlay_on_audio'))
         # theme label: set via translations
         try:
             self.theme_label.setText(self.get_t('theme'))
@@ -714,8 +714,8 @@ class App(QMainWindow):
         self.fade_btn.setToolTip(f"{self.get_t('fade_out')} ({shortcut_label('fade_out')})")
         self.fullscreen_btn.setText(f"{self.get_t('fullscreen')} ({shortcut_label('fullscreen')})")
         self.fullscreen_btn.setToolTip(f"{self.get_t('fullscreen')} ({shortcut_label('fullscreen')})")
-        self.logo_audio_checkbox.setText(f"{self.get_t('image_for_audio')} ({shortcut_label('logo_audio')})")
-        self.logo_overlay_btn.setText(f"{self.get_t('overlay_on_image')} ({shortcut_label('logo_overlay')})")
+        self.overlay_on_audio_checkbox.setText(f"{self.get_t('overlay_on_audio')} ({shortcut_label('overlay_on_audio')})")
+        self.force_overlay_btn.setText(f"{self.get_t('force_overlay')} ({shortcut_label('force_overlay')})")
 
     def update_shortcuts(self):
         remote_enabled = self.remote_checkbox.isChecked()
@@ -734,12 +734,12 @@ class App(QMainWindow):
 
     def _set_projection_brightness(self, brightness, queued=False):
         self.engine.set_brightness(brightness)
-        self.projection_window.logo_viewer.opacity = brightness
+        self.projection_window.overlay_viewer.opacity = brightness
 
         if queued:
-            QTimer.singleShot(0, self.projection_window.logo_viewer.update)
+            QTimer.singleShot(0, self.projection_window.overlay_viewer.update)
         else:
-            self.projection_window.logo_viewer.update()
+            self.projection_window.overlay_viewer.update()
 
     def _on_fade_speed_changed(self, value):
         # value: 0–10, gdzie 10 = 1.0s
@@ -756,9 +756,9 @@ class App(QMainWindow):
         h, m = divmod(m, 60)
         return f"{h:02d}:{m:02d}:{s:02d}" if h > 0 else f"{m:02d}:{s:02d}"
 
-    def _check_logo_player_status(self):
-        logo_path = getattr(self, '_logo_path', None)
-        if logo_path and os.path.exists(logo_path) and not is_image_file(logo_path):
+    def _check_overlay_player_status(self):
+        overlay_path = getattr(self, '_global_overlay_path', None)
+        if overlay_path and os.path.exists(overlay_path) and not is_image_file(overlay_path):
             if self.engine.overlay_player.get_state() in (vlc.State.Ended, vlc.State.Stopped):
                 self.engine.overlay_player.play()
                 self.engine.mute_overlay()
@@ -782,8 +782,8 @@ class App(QMainWindow):
         self.progress_slider.setValue(0)
         self.time_label.setText(EMPTY_TIME_LABEL)
 
-    def _on_stopping(self, keep_logo):
-        if not keep_logo:
+    def _on_stopping(self, keep_overlay):
+        if not keep_overlay:
             self._set_projection_brightness(0.0)
 
     def _on_transition_finished(self):
@@ -852,49 +852,49 @@ class App(QMainWindow):
     def _set_projection_mode_for_path(self, path):
         plan = projection_plan(
             global_overlay_enabled=bool(
-                getattr(self, 'logo_overlay_btn', None)
-                and self.logo_overlay_btn.isChecked()
+                getattr(self, 'force_overlay_btn', None)
+                and self.force_overlay_btn.isChecked()
             ),
             item_overlay_enabled=self.playlist_model.overlay_for_row(self.session.playing_row),
             item_overlay_path=self.playlist_model.overlay_path_for_row(self.session.playing_row),
             is_audio=bool(path and is_audio_file(path)),
-            overlay_on_audio_enabled=self.logo_audio_checkbox.isChecked(),
-            global_overlay_path=getattr(self, '_logo_path', None),
+            overlay_on_audio_enabled=self.overlay_on_audio_checkbox.isChecked(),
+            global_overlay_path=getattr(self, '_global_overlay_path', None),
         )
 
         if plan.show_overlay:
-            self.projection_window.set_mode_audio()
+            self.projection_window.set_mode_overlay()
             # Indywidualna nakładka wygrywa; inaczej ładujemy globalną.
             if plan.asset_path:
-                self._load_overlay_media(plan.asset_path)
+                self._load_overlay_asset(plan.asset_path)
             else:
-                self.update_logo_media()
+                self.update_overlay_media()
         else:
-            self.projection_window.set_mode_video()
+            self.projection_window.set_mode_media()
 
-        self.projection_window.logo_viewer.show_logo = plan.show_overlay
-        self.projection_window.logo_viewer.update()
+        self.projection_window.overlay_viewer.show_overlay = plan.show_overlay
+        self.projection_window.overlay_viewer.update()
 
-    def _load_overlay_media(self, path):
-        if getattr(self, '_current_playing_logo_path', None) == path:
+    def _load_overlay_asset(self, path):
+        if getattr(self, '_loaded_overlay_path', None) == path:
             return  # Już załadowane, nie ma potrzeby restartować
 
-        self._current_playing_logo_path = path
+        self._loaded_overlay_path = path
 
         if not path or not os.path.exists(path):
             self.engine.overlay_player.stop()
-            self.projection_window.logo_viewer.logo_pixmap = None
-            self.projection_window.logo_viewer.update()
+            self.projection_window.overlay_viewer.overlay_pixmap = None
+            self.projection_window.overlay_viewer.update()
             return
 
         if is_image_file(path):
             self.engine.overlay_player.stop()
-            self.projection_window.logo_viewer.logo_pixmap = QPixmap(path)
-            self.projection_window.logo_stacked_layout.setCurrentWidget(self.projection_window.logo_viewer)
-            self.projection_window.logo_viewer.update()
+            self.projection_window.overlay_viewer.overlay_pixmap = QPixmap(path)
+            self.projection_window.overlay_stacked_layout.setCurrentWidget(self.projection_window.overlay_viewer)
+            self.projection_window.overlay_viewer.update()
         else:
-            self.projection_window.logo_viewer.logo_pixmap = None
-            self.projection_window.logo_stacked_layout.setCurrentWidget(self.projection_window.logo_video_widget)
+            self.projection_window.overlay_viewer.overlay_pixmap = None
+            self.projection_window.overlay_stacked_layout.setCurrentWidget(self.projection_window.overlay_video_widget)
             media = self.engine.media(path)
             # Ensure overlay media is played without audio
             media.add_option('no-audio')
@@ -967,7 +967,7 @@ class App(QMainWindow):
 
         if progress >= 1.0:
             self.fade_timer.stop()
-            self.stop_media(keep_logo=state["audio_only"], after_stop=self._finish_fade_out)
+            self.stop_media(keep_overlay=state["audio_only"], after_stop=self._finish_fade_out)
 
     def _finish_fade_out(self):
         state = self._fade_state
@@ -980,13 +980,13 @@ class App(QMainWindow):
         if not self.session.toggle_play_pause():
             self.play_media()
 
-    def stop_media(self, keep_logo=False, after_stop=None):
+    def stop_media(self, keep_overlay=False, after_stop=None):
         if self.fade_timer.isActive() and after_stop is None:
             self.fade_timer.stop()
             self._fade_state = None
             self.session.end_transition()
 
-        self.session.stop(keep_logo=keep_logo, after_stop=after_stop)
+        self.session.stop(keep_overlay=keep_overlay, after_stop=after_stop)
 
     def play_next_file(self):
         idx = self.playlist.currentIndex()
@@ -1002,35 +1002,35 @@ class App(QMainWindow):
             self.playlist.setCurrentIndex(new_idx)
             self.play_media()
 
-    def select_logo(self):
+    def select_overlay(self):
         filter_str = self.get_t('select_overlay_dialog') + " (*.png *.jpg *.jpeg *.bmp *.gif *.mp4 *.mkv);;" + self.get_t('select_overlay_dialog') + " (*.png *.jpg *.jpeg *.bmp *.gif);;" + self.get_t('select_overlay_dialog') + " (*.mp4 *.mkv);;Wszystkie (*.*)"
         path, _ = QFileDialog.getOpenFileName(self, self.get_t('select_overlay_dialog'), "", filter_str)
         if path:
-            self._logo_path = path
-            self.update_logo_media()
+            self._global_overlay_path = path
+            self.update_overlay_media()
 
-    def update_logo_media(self):
-        path = getattr(self, '_logo_path', None)
+    def update_overlay_media(self):
+        path = getattr(self, '_global_overlay_path', None)
         
-        if getattr(self, '_current_playing_logo_path', None) == path and path is not None:
+        if getattr(self, '_loaded_overlay_path', None) == path and path is not None:
             return  # Już załadowane, nie ma potrzeby restartować
             
-        self._current_playing_logo_path = path
+        self._loaded_overlay_path = path
         
         if not path or not os.path.exists(path):
             self.engine.overlay_player.stop()
-            self.projection_window.logo_viewer.logo_pixmap = None
-            self.projection_window.logo_viewer.update()
+            self.projection_window.overlay_viewer.overlay_pixmap = None
+            self.projection_window.overlay_viewer.update()
             return
 
         if is_image_file(path):
             self.engine.overlay_player.stop()
-            self.projection_window.logo_viewer.logo_pixmap = QPixmap(path)
-            self.projection_window.logo_stacked_layout.setCurrentWidget(self.projection_window.logo_viewer)
-            self.projection_window.logo_viewer.update()
+            self.projection_window.overlay_viewer.overlay_pixmap = QPixmap(path)
+            self.projection_window.overlay_stacked_layout.setCurrentWidget(self.projection_window.overlay_viewer)
+            self.projection_window.overlay_viewer.update()
         else:
-            self.projection_window.logo_viewer.logo_pixmap = None
-            self.projection_window.logo_stacked_layout.setCurrentWidget(self.projection_window.logo_video_widget)
+            self.projection_window.overlay_viewer.overlay_pixmap = None
+            self.projection_window.overlay_stacked_layout.setCurrentWidget(self.projection_window.overlay_video_widget)
             media = self.engine.media(path)
             # Ensure overlay media is played without audio
             media.add_option('no-audio')
@@ -1048,7 +1048,7 @@ class App(QMainWindow):
             self.projection_window.showFullScreen()
 
         self.engine.attach(self.projection_window.video_widget,
-                           self.projection_window.logo_video_widget)
+                           self.projection_window.overlay_video_widget)
 
         self.activateWindow()
 
@@ -1058,13 +1058,13 @@ class App(QMainWindow):
         else:
             self.projection_window.show()
             self.engine.attach(self.projection_window.video_widget,
-                               self.projection_window.logo_video_widget)
+                               self.projection_window.overlay_video_widget)
 
-    def toggle_logo_overlay(self, checked):
+    def toggle_overlay(self, checked):
         path = self.session.current_media_path()
         self._set_projection_mode_for_path(path)
 
-    def update_logo_visibility(self):
+    def update_overlay_visibility(self):
         path = self.session.current_media_path()
         self._set_projection_mode_for_path(path)
 
@@ -1080,7 +1080,7 @@ class App(QMainWindow):
                         ProjectItem(entry.path, entry.overlay, entry.overlay_path)
                         for entry in self.playlist_model.entries()
                     ),
-                    overlay_path=getattr(self, '_logo_path', None),
+                    overlay_path=getattr(self, '_global_overlay_path', None),
                 )
                 with open(path, 'w', encoding='utf-8') as f:
                     json.dump(project_to_data(project), f, ensure_ascii=False, indent=4)
@@ -1121,8 +1121,8 @@ class App(QMainWindow):
                 self.playlist_model.refresh_rows(0, len(existing_files) - 1)
 
             if project.overlay_path and os.path.exists(project.overlay_path):
-                self._logo_path = project.overlay_path
-                self.update_logo_media()
+                self._global_overlay_path = project.overlay_path
+                self.update_overlay_media()
 
             self.settings.setValue("last_project", path)
             self.update_window_title(path)

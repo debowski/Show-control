@@ -129,11 +129,11 @@ class PlaybackSession(QObject):
             self.engine.player.play()
         return True
 
-    def stop(self, keep_logo=False, after_stop=None):
+    def stop(self, keep_overlay=False, after_stop=None):
         self._stop_image_autoplay()
         if self.engine.player.get_state() in (vlc.State.Playing, vlc.State.Paused):
             # Odpinamy wideo przed audio (na czarny ekran) przed stopem
-            self.stopping.emit(keep_logo)
+            self.stopping.emit(keep_overlay)
 
             # Zerujemy odtwarzacz matematycznie, BEZ wyciszania gniazda sprzętowego
             has_audio = (self.engine.player.audio_get_track_count() > 0)

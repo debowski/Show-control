@@ -61,10 +61,21 @@ class OverlayController:
 
         if state_changed:
             self._overlay_mode = show_overlay
-            ready_check = None
-            if show_overlay and plan.asset_path and not is_image_file(plan.asset_path):
-                ready_check = self._engine.overlay_player.has_vout
-            self._projection.fade_to(commit, ready_check)
+            is_global_overlay = (
+                force_overlay_enabled
+                or (is_audio and overlay_on_audio_enabled)
+                or (show_overlay and plan.asset_path == self._global_asset)
+                or (not show_overlay and self._loaded_asset == self._global_asset)
+            )
+            if is_global_overlay:
+                if getattr(self._projection, 'curtain', None):
+                    self._projection.curtain.cancel()
+                commit()
+            else:
+                ready_check = None
+                if show_overlay and plan.asset_path and not is_image_file(plan.asset_path):
+                    ready_check = self._engine.overlay_player.has_vout
+                self._projection.fade_to(commit, ready_check)
         else:
             commit()
         return plan

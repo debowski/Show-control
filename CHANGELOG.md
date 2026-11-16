@@ -37,6 +37,13 @@ dla operatora idą jako patch, bo operator aktualizuje ręcznie i nie ma czego
   sesji; model dostaje wyłącznie wskaźnik do narysowania. Czyste reguły
   przesunięcia indeksu przy zmianach wierszy zostają w `domain/playlist.py`.
   `SessionState` + sygnał `failure` są seamem recovery dla fazy B.
+- `playback/fade.py` — `FadeController` przejmuje stan fade i kroki wygaszania.
+- `playback/overlay.py` — jeden kontroler ładowania assetu i trybu projekcji;
+  zniknęły dwa rozjechane bloki `_load_overlay_media` / `update_logo_media`
+  i dwa wskaźniki „aktualnie załadowanego assetu".
+- Nazwy `logo` → `overlay` w kodzie i UI (`OverlayViewer`, `set_mode_overlay`,
+  `overlay_on_audio_checkbox`, `force_overlay_btn`). Klucz `"logo"` w JSON
+  projektu zostaje dla zgodności formatu.
 
 - `GLOSSARY.md`, „Precedencja": F9 jest włącznikiem overlaya globalnego, nie
   nadpisaniem overlaya pozycji. Poprzednia wersja opisywała zamierzenie, nie
@@ -46,17 +53,21 @@ dla operatora idą jako patch, bo operator aktualizuje ręcznie i nie ma czego
 - Dwa nowe defekty w sekcji 6: filtr dialogu „Dodaj pliki" (13) i overlay
   nieczyszczony przy wczytaniu projektu bez overlaya (14).
 
-### Zmienione — planowane (faza 3, ADR 0005)
+### Zmienione — faza 3 (ADR 0005)
 
 - **F9 nadpisuje overlay pozycji.** Przycisk zmienia nazwę na „Wymuś overlay",
   pokazuje overlay globalny i zasłania media oraz overlay bieżącej pozycji.
   Jest stanem do wyłączenia przez operatora, zerowanym przy starcie i przy
   wczytywaniu projektu. Przy braku assetu globalnego — wyszarzony.
 - **Checkbox pozycji** znaczy wyłącznie „ta pozycja używa swojego overlaya";
-  bez własnego assetu jest nieaktywny. Znika przypadek „użyj globalnego
-  dla tej pozycji".
+  bez własnego assetu jest nieaktywny. Przypisanie assetu nie włącza już flagi
+  automatycznie. Znika przypadek „użyj globalnego dla tej pozycji".
 - **Migracja:** pozycje z `"overlay": true` i bez `overlay_path` tracą flagę
-  przy wczytaniu, z jednorazowym komunikatem.
+  przy wczytaniu, z jednorazowym komunikatem. Projekt zapisuje się w nowym
+  kształcie dopiero po zapisie operatora.
+- **Skutek:** pozycje, które wcześniej polegały na globalnym overlayu przez
+  własną flagę, nie pokażą go już bez F9. To zmiana widoczna dla operatora —
+  wydanie minor, nie patch.
 
 ## [0.7.2] — 2026-11-13
 

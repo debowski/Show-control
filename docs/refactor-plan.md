@@ -147,6 +147,9 @@ Usunięcie gałęzi `sys.platform.startswith("win")` — zostaje ścieżka Windo
 
 ### Faza 3 — `playback/fade.py` + `playback/overlay.py`
 
+**Status:** ukończona (2026-11-16). Osobne commity: nazwy `overlay`,
+`FadeController`, `OverlayController`, zmiana zachowania ADR 0005.
+
 `_fade_state` i `is_transitioning` → `FadeController`. Ładowanie assetu
 overlay i tryb projekcji → `overlay.py` (używa `domain/overlay_rules.py`).
 Znikają dwa niemal identyczne bloki: `_load_overlay_media` (1761–1792)

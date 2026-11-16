@@ -26,9 +26,9 @@ PyQt6, LibVLC przez `python-vlc`. GPL-3.0.
 ## Gdzie co jest
 
 Stan bieżący: fazy 0–4 ukończone. `main.py` to bootstrap; kod w `showcontrol/`
-(`app.py` nadal trzyma logikę przed fazą 5, `domain/`, `ui/`,
-`playback/engine.py`, `playback/session.py`). Testy w `tests/` — domain,
-bez Qt i VLC.
+(`app.py` nadal trzyma UI przed fazą 5, `domain/`, `ui/`,
+`playback/engine.py`, `playback/session.py`, `playback/fade.py`,
+`playback/overlay.py`). Testy w `tests/` — domain, bez Qt i VLC.
 Stan docelowy i mapa modułów: `docs/refactor-plan.md`, sekcja 4.
 
 Pytania „co to znaczy X" rozstrzyga `GLOSSARY.md`, nie kod. Jeśli kod używa

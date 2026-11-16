@@ -64,12 +64,12 @@ Playback features:
 - Reorder playlist items using drag and drop.
 - Search and filter playlist entries in real time.
 - Highlight the currently playing item.
-- Configure overlay behaviour individually for playlist entries.
+- Configure a per-item overlay for playlist entries (requires the item's own overlay file).
 - Remove unwanted items from the playlist.
 
 ### Visual Overlays and Branding
 
-Display a logo, static image or looping video instead of the main projection.
+Display an overlay, static image or looping video instead of the main projection.
 
 Supported overlay formats:
 
@@ -78,11 +78,11 @@ Supported overlay formats:
 
 Additional capabilities:
 
-- Display a logo during audio playback.
-- Toggle the overlay independently of the current playlist item.
+- Display an overlay during audio playback.
+- Force the global overlay independently of the current playlist item; it covers both media and item overlays. Disabled when no global overlay file is selected.
 - Play video overlays continuously in a loop without audio.
 - Adjust overlay brightness.
-- Automatically activate overlays for selected playlist entries.
+- Activate per-item overlays for selected playlist entries.
 
 This is particularly useful for displaying event branding, school or company logos, sponsor graphics, and visual backgrounds between presentations.
 
@@ -158,8 +158,8 @@ Other features:
 | F5 | Stop |
 | F6 | Previous item |
 | F7 | Next item |
-| F9 | Toggle overlay |
-| F10 | Toggle image for audio |
+| F9 | Force global overlay |
+| F10 | Toggle overlay on audio |
 | F11 | Toggle projection fullscreen |
 | F12 | Save project |
 | Delete | Remove selected playlist item |

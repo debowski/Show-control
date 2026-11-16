@@ -80,10 +80,11 @@ media, jak i overlay bieżącej pozycji. Po wyłączeniu wraca natychmiast to,
 co wynika z pozycji. F9 nie jest zapisywany w projekcie i jest zerowany przy
 starcie oraz przy wczytywaniu projektu.
 
-**Stan obecny (`v0.7.1`) jest inny:** kod łączy warunki alternatywą
-(`show_overlay = global or item or on_audio`, `main.py:1746`), więc F9 nie
-potrafi ukryć overlaya pozycji. Faza 3 zawiera więc **zmianę zachowania**,
-nie przeniesienie — osobny commit i osobna brama.
+**Stan obecny:** kod implementuje tabelę powyżej od fazy 3 (ADR 0005).
+Wcześniej (`v0.7.1`) warunki były alternatywą
+(`show_overlay = global or item or on_audio`), więc F9 nie potrafił ukryć
+overlaya pozycji. To była zmiana zachowania, nie przeniesienie — osobny
+commit i osobna brama.
 
 Przy braku assetu globalnego F9 jest wyszarzony i nieaktywny.
 

@@ -21,6 +21,7 @@ class OverlayController:
         self._projection = projection
         self._global_asset = None
         self._loaded_asset = None
+        self._overlay_mode = False
 
     @property
     def global_asset(self):
@@ -44,14 +45,28 @@ class OverlayController:
             global_overlay_path=self._global_asset,
         )
 
-        if plan.show_overlay:
-            self._projection.set_mode_overlay()
-            self._load_asset(plan.asset_path, brightness)
-        else:
-            self._projection.set_mode_media()
+        show_overlay = plan.show_overlay
+        state_changed = show_overlay != self._overlay_mode
 
-        self._projection.overlay_viewer.show_overlay = plan.show_overlay
-        self._projection.overlay_viewer.update()
+        def commit():
+            if show_overlay:
+                # Asset first, then the mode switch: obraz jest gotowy, zanim
+                # kurtyna się podniesie.
+                self._load_asset(plan.asset_path, brightness)
+                self._projection.set_mode_overlay()
+            else:
+                self._projection.set_mode_media()
+            self._projection.overlay_viewer.show_overlay = show_overlay
+            self._projection.overlay_viewer.update()
+
+        if state_changed:
+            self._overlay_mode = show_overlay
+            ready_check = None
+            if show_overlay and plan.asset_path and not is_image_file(plan.asset_path):
+                ready_check = self._engine.overlay_player.has_vout
+            self._projection.fade_to(commit, ready_check)
+        else:
+            commit()
         return plan
 
     def tick(self):

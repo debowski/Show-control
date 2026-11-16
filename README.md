@@ -80,6 +80,7 @@ Additional capabilities:
 
 - Display an overlay during audio playback.
 - Force the global overlay independently of the current playlist item; it covers both media and item overlays. Disabled when no global overlay file is selected.
+- Switch between media and overlay with a short fade through black instead of a black flash.
 - Play video overlays continuously in a loop without audio.
 - Adjust overlay brightness.
 - Activate per-item overlays for selected playlist entries.

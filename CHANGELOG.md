@@ -53,6 +53,16 @@ dla operatora idą jako patch, bo operator aktualizuje ręcznie i nie ma czego
 - Dwa nowe defekty w sekcji 6: filtr dialogu „Dodaj pliki" (13) i overlay
   nieczyszczony przy wczytaniu projektu bez overlaya (14).
 
+### Zmienione — poza refaktorem
+
+- **Przejście media ↔ overlay przez kurtynę.** Włączenie i wyłączenie
+  overlaya (F9, F10, checkbox pozycji) nie pokazuje już czarnej dziury, zanim
+  VLC wystawi pierwszy obraz. Kurtyna to osobne okno top-level nad projekcją
+  (natywne okno VLC zasłania zwykłe widżety): fade do czerni 120 ms, zmiana
+  trybu w czerni, odsłonięcie 300 ms. Dla wideo kurtyna czeka na pierwszy
+  obraz (`has_vout`, maks. 800 ms). To zmiana poza fazami refaktoru — faza 3
+  była już ukończona.
+
 ### Zmienione — faza 3 (ADR 0005)
 
 - **F9 nadpisuje overlay pozycji.** Przycisk zmienia nazwę na „Wymuś overlay",

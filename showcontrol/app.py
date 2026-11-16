@@ -4,7 +4,8 @@ import json
 import os
 import sys
 
-from PyQt6.QtCore import Qt, QTimer, QModelIndex
+from PyQt6.QtCore import (Qt, QTimer, QModelIndex, QPropertyAnimation,
+                          QEasingCurve)
 from PyQt6.QtGui import QShortcut, QKeySequence, QPainter
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                              QHBoxLayout, QPushButton, QSlider, QListView,
@@ -122,6 +123,112 @@ class OverlayViewer(QWidget):
             painter.setOpacity(self.opacity)
             painter.drawPixmap(int((w - scaled.width())/2), int((h - scaled.height())/2), scaled)
 
+CURTAIN_FADE_IN_MS = 120
+CURTAIN_FADE_OUT_MS = 300
+CURTAIN_MIN_HOLD_MS = 120
+CURTAIN_MAX_HOLD_MS = 800
+CURTAIN_POLL_MS = 25
+
+
+class ProjectionCurtain(QWidget):
+    """Czarna kurtyna nad oknem projekcji — przejście media ↔ overlay.
+
+    VLC rysuje obraz w natywnym oknie potomnym, więc zwykły widget w oknie
+    projekcji schowałby się pod wideo. Kurtyna jest osobnym oknem top-level:
+    zasłania natywny obraz, pozwala przełączyć tryb w czerni i płynnie odsłonić
+    nowy obraz. `ready_check` opóźnia odsłonięcie, aż overlay ma pierwszy
+    obraz — dzięki temu nie ma czarnej dziury przed startem wideo.
+    """
+
+    def __init__(self, parent):
+        super().__init__(
+            parent,
+            Qt.WindowType.FramelessWindowHint
+            | Qt.WindowType.WindowStaysOnTopHint
+            | Qt.WindowType.Tool
+            | Qt.WindowType.WindowTransparentForInput,
+        )
+        self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
+        self.setStyleSheet("background-color: black;")
+        self.setWindowOpacity(0.0)
+
+        self._apply_mode = None
+        self._ready_check = None
+        self._waited_ms = 0
+
+        self._animation = QPropertyAnimation(self, b"windowOpacity", self)
+        self._animation.setEasingCurve(QEasingCurve.Type.InOutQuad)
+        self._animation.finished.connect(self._on_animation_finished)
+
+        self._ready_timer = QTimer(self)
+        self._ready_timer.setInterval(CURTAIN_POLL_MS)
+        self._ready_timer.timeout.connect(self._poll_ready)
+
+    def play(self, apply_mode, ready_check=None):
+        self._ready_timer.stop()
+        self._animation.stop()
+        self._apply_mode = apply_mode
+        self._ready_check = ready_check
+        self._waited_ms = 0
+        self.setGeometry(self.parentWidget().frameGeometry())
+        if not self.isVisible():
+            self.setWindowOpacity(0.0)
+            self.show()
+        self.raise_()
+        # Przerwane przejście wznawia się od bieżącej krycia, nie od zera —
+        # szybkie F9 nie miga czernią wstecz.
+        self._animate(1.0, CURTAIN_FADE_IN_MS)
+
+    def cancel(self):
+        self._ready_timer.stop()
+        self._animation.stop()
+        apply_mode, self._apply_mode = self._apply_mode, None
+        self._ready_check = None
+        # Przełączenie nie może zginąć, jeśli okno zniknie w trakcie przejścia.
+        if apply_mode is not None:
+            apply_mode()
+        self.hide()
+
+    def follow(self):
+        if self.isVisible():
+            self.setGeometry(self.parentWidget().frameGeometry())
+
+    def _animate(self, value, duration_ms):
+        self._animation.stop()
+        self._animation.setDuration(duration_ms)
+        self._animation.setStartValue(self.windowOpacity())
+        self._animation.setEndValue(value)
+        self._animation.start()
+
+    def _on_animation_finished(self):
+        if self.windowOpacity() < 1.0:
+            self.hide()
+            return
+
+        apply_mode, self._apply_mode = self._apply_mode, None
+        if apply_mode is not None:
+            apply_mode()
+
+        if self._ready_check is None:
+            self._fade_out()
+        else:
+            self._waited_ms = 0
+            self._ready_timer.start()
+
+    def _poll_ready(self):
+        self._waited_ms += CURTAIN_POLL_MS
+        ready = self._ready_check is None or self._ready_check()
+        if ready and self._waited_ms >= CURTAIN_MIN_HOLD_MS:
+            self._ready_timer.stop()
+            self._fade_out()
+        elif self._waited_ms >= CURTAIN_MAX_HOLD_MS:
+            self._ready_timer.stop()
+            self._fade_out()
+
+    def _fade_out(self):
+        self._animate(0.0, CURTAIN_FADE_OUT_MS)
+
+
 class ProjectionWindow(QWidget):
     def __init__(self):
         super().__init__()
@@ -140,6 +247,7 @@ class ProjectionWindow(QWidget):
         self.stacked_layout.addWidget(self.video_widget)
         self.stacked_layout.addWidget(self.overlay_container)
         self.set_mode_media()
+        self.curtain = ProjectionCurtain(self)
         set_window_icon(self, "ikona_bw.ico")
 
     def set_mode_media(self):
@@ -147,6 +255,31 @@ class ProjectionWindow(QWidget):
         
     def set_mode_overlay(self):
         self.stacked_layout.setCurrentWidget(self.overlay_container)
+
+    def fade_to(self, apply_mode, ready_check=None):
+        """Przełącza tryb projekcji przez kurtynę.
+
+        Gdy okno projekcji jest ukryte, nie ma czego zasłaniać — przełączenie
+        idzie od razu.
+        """
+        if not self.isVisible():
+            apply_mode()
+            return
+        self.curtain.play(apply_mode, ready_check)
+
+    def hideEvent(self, event):
+        self.curtain.cancel()
+        super().hideEvent(event)
+
+    def moveEvent(self, event):
+        if getattr(self, 'curtain', None):
+            self.curtain.follow()
+        super().moveEvent(event)
+
+    def resizeEvent(self, event):
+        if getattr(self, 'curtain', None):
+            self.curtain.follow()
+        super().resizeEvent(event)
         
     def mouseDoubleClickEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:

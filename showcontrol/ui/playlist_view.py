@@ -9,7 +9,15 @@ from PyQt6.QtWidgets import QListView, QFileDialog, QStyledItemDelegate
 
 from showcontrol.domain.media import find_media_paths
 from showcontrol.domain.playlist import PlaylistStore
-from showcontrol.ui.i18n import DEFAULT_LANGUAGE, TRANSLATIONS
+from showcontrol.ui.i18n import DEFAULT_LANGUAGE, get_t
+from showcontrol.ui.theme import theme_color
+
+
+def _translate(widget, key, **kwargs):
+    """Tłumaczenie z okna operatora, z bezpiecznym fallbackiem dla testów."""
+    if widget is not None and hasattr(widget, "get_t"):
+        return widget.get_t(key, **kwargs)
+    return get_t(DEFAULT_LANGUAGE, key, **kwargs)
 
 
 class PlaylistModel(QAbstractListModel):
@@ -50,9 +58,15 @@ class PlaylistModel(QAbstractListModel):
         elif role == Qt.ItemDataRole.ToolTipRole:
             tooltip = entry.path
             if entry.overlay_path:
-                tooltip += f" [nakładka: {os.path.basename(entry.overlay_path)}]"
+                tooltip += " " + _translate(
+                    self.parent(),
+                    'overlay_item_tooltip',
+                    name=os.path.basename(entry.overlay_path),
+                )
             elif entry.overlay:
-                tooltip += " [nakładka globalna]"
+                tooltip += " " + _translate(
+                    self.parent(), 'overlay_global_tooltip'
+                )
             return tooltip
         elif role == Qt.ItemDataRole.CheckStateRole:
             if not entry.overlay_path:
@@ -60,7 +74,7 @@ class PlaylistModel(QAbstractListModel):
             return Qt.CheckState.Checked if entry.overlay else Qt.CheckState.Unchecked
         elif role == Qt.ItemDataRole.BackgroundRole:
             if row == self.playing_row:
-                return QColor("#094771")
+                return QColor(theme_color("list_play"))
         elif role == Qt.ItemDataRole.FontRole:
             if row == self.playing_row:
                 return QFont("Segoe UI", 10, QFont.Weight.Bold)
@@ -297,18 +311,18 @@ class PlaylistItemDelegate(QStyledItemDelegate):
         # Rysowanie ikony 📁
         # Tło
         painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QColor("#444444"))
+        painter.setBrush(QColor(theme_color("bg_btn")))
         painter.drawRoundedRect(folder_rect, 3, 3)
         # Tekst
-        painter.setPen(QColor("white"))
+        painter.setPen(QColor(theme_color("text")))
         painter.drawText(folder_rect, Qt.AlignmentFlag.AlignCenter, "📁")
         
         # Rysowanie ikony ✖ jeśli potrzebna
         if overlay_path:
             painter.setPen(Qt.PenStyle.NoPen)
-            painter.setBrush(QColor("#883333"))
+            painter.setBrush(QColor(theme_color("stop")))
             painter.drawRoundedRect(reset_rect, 3, 3)
-            painter.setPen(QColor("white"))
+            painter.setPen(QColor(theme_color("text")))
             painter.drawText(reset_rect, Qt.AlignmentFlag.AlignCenter, "✖")
             
         painter.restore()
@@ -344,17 +358,9 @@ class PlaylistItemDelegate(QStyledItemDelegate):
             # Sprawdź kliknięcie 📁
             if folder_rect.contains(pos):
                 parent_widget = option.widget
-                # Use parent's translation if available, otherwise fallback
-                dialog_title = "Wybierz nakładkę dla pliku"
-                try:
-                    if hasattr(parent_widget, 'get_t'):
-                        dialog_title = parent_widget.get_t('select_overlay_dialog')
-                    else:
-                        dialog_title = TRANSLATIONS[DEFAULT_LANGUAGE]['select_overlay_dialog']
-                except Exception:
-                    dialog_title = TRANSLATIONS[DEFAULT_LANGUAGE]['select_overlay_dialog']
-
-                filter_text = "Wszystkie obsługiwane (*.png *.jpg *.jpeg *.bmp *.gif *.mp4 *.mkv);;Obrazy (*.png *.jpg *.jpeg *.bmp *.gif);;Wideo (*.mp4 *.mkv);;Wszystkie (*.*)"
+                window = parent_widget.window() if parent_widget else None
+                dialog_title = _translate(window, 'select_overlay_dialog')
+                filter_text = _translate(window, 'overlay_item_filter')
                 path, _ = QFileDialog.getOpenFileName(parent_widget, dialog_title, "", filter_text)
                 if path:
                     if hasattr(model, 'sourceModel'):

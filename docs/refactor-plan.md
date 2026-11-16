@@ -1,6 +1,7 @@
 # Plan refaktoru Show Control
 
-**Status:** zatwierdzony kierunek; fazy 0–4 ukończone (2026-11-16)
+**Status:** zatwierdzony kierunek; fazy 0–4 ukończone, faza 5 w toku
+(2026-11-16)
 **Punkt wyjścia:** `v0.7.1` (`5cfcc81`)
 **Właściciel:** solowy maintainer
 **Zakres:** A (rozbicie monolitu) + C (model domenowy) → potem B (niezawodność)
@@ -190,6 +191,13 @@ się w przepisywanie tej fazy.
 mignięć.
 
 ### Faza 5 — `ui/*` i `window.py`
+
+**Status:** zakres kodowy domknięty (2026-11-16). `ui/layout.py` buduje trzy
+panele, `MainWindow` w `window.py` spina moduły. Teksty żyją w `ui/i18n.py`,
+jedna tabela w `ui/shortcuts.py` niesie klawisz, akcję i etykietę, a tokeny
+motywu czytają delegate, lista i etykiety paneli. Zostaje brama: build i exe
+na sprzęcie z drugim ekranem. `window.py` (~630 linii) zmniejszy faza 6,
+która wydzieli zapis/odczyt i ustawienia do `persistence/*`.
 
 `init_ui` (312 linii) → 3 panele w `ui/layout.py`. Podział na
 `ui/playlist_view.py`, `ui/projection.py`, `ui/shortcuts.py` (tabela skrótów

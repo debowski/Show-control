@@ -40,14 +40,12 @@ def create_application(argv):
     app = QApplication(argv)
     settings = QSettings(SETTINGS_ORGANIZATION, SETTINGS_APPLICATION)
     theme_key = settings.value("theme", DEFAULT_THEME)
+    app.setProperty("theme_key", theme_key)
     app.setStyleSheet(generate_stylesheet(theme_key))
     return app, settings
 
 
 def main():
-    from showcontrol.app import App
+    from showcontrol.window import main as app_main
 
-    app, settings = create_application(sys.argv)
-    window = App(settings)
-    window.show()
-    sys.exit(app.exec())
+    app_main(sys.argv)

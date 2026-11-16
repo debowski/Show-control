@@ -37,7 +37,6 @@ class StereoPeakMeter(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setFixedSize(68, 140)
-        self.setToolTip("Miernik Szczytowy Stereo (IEC dBFS)")
 
         # Poziomy chwilowe (w dBFS)
         self._current_l = MIN_DBFS

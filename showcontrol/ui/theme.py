@@ -1,5 +1,7 @@
 """Tokeny motywów i generowanie arkusza QSS. Bez zależności od Qt."""
 
+from __future__ import annotations
+
 # Each theme is a flat dict of color tokens consumed by generate_stylesheet().
 THEMES = {
     "dark": {
@@ -90,6 +92,26 @@ THEMES = {
 
 THEME_KEYS = list(THEMES.keys())
 DEFAULT_THEME = "dark"
+
+
+def active_theme_key() -> str:
+    try:
+        from PyQt6.QtWidgets import QApplication
+
+        app = QApplication.instance()
+        if app is not None:
+            theme_key = app.property("theme_key")
+            if isinstance(theme_key, str) and theme_key in THEMES:
+                return theme_key
+    except Exception:
+        pass
+    return DEFAULT_THEME
+
+
+def theme_color(token: str, theme_key: str | None = None) -> str:
+    selected_key = theme_key or active_theme_key()
+    theme = THEMES.get(selected_key, THEMES[DEFAULT_THEME])
+    return theme.get(token, THEMES[DEFAULT_THEME].get(token, "#ffffff"))
 
 
 def generate_stylesheet(theme_key: str) -> str:
@@ -300,6 +322,16 @@ def generate_stylesheet(theme_key: str) -> str:
         font-size: 13pt;
         font-weight: bold;
         color: {t['text']};
+    }}
+
+    /* --- Small labels above sliders and the meter --- */
+    QLabel#MeterTitle, QLabel#PeakLabel, QLabel#VolumeTitle,
+    QLabel#BrightnessTitle, QLabel#FadeTitle {{
+        font-size: 8pt;
+        color: {t['text_dim']};
+    }}
+    QLabel#PeakLabel {{
+        font-family: monospace;
     }}
 
     /* --- Move buttons (lista) --- */

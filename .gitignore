@@ -52,3 +52,6 @@ Thumbs.db
 
 # Docs build
 docs/_build/
+
+# Agent skills (odtwarzane z skills-lock.json)
+.agents/skills/

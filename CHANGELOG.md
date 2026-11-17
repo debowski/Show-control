@@ -6,7 +6,7 @@ Projekt jest przed 1.0 i nie ma zewnętrznych konsumentów API — zmiany widocz
 dla operatora idą jako patch, bo operator aktualizuje ręcznie i nie ma czego
 łamać poza własnym przyzwyczajeniem.
 
-## [Unreleased]
+## [0.8.0] — 2026-11-17
 
 ### Dodane
 
@@ -19,6 +19,8 @@ dla operatora idą jako patch, bo operator aktualizuje ręcznie i nie ma czego
 - Gałąź `refactor/plan`.
 - `tests/` — testy domeny, ustawień, motywu i zapisu/odczytu projektu.
   Bez Qt i VLC, `pytest` w CI-lokalnym zakresie.
+- `docs/agents/` i `skills-lock.json` — konfiguracja skilli agenta: tracker
+  w `.scratch/`, role triage, zasady czytania glosariusza i ADR-ów.
 
 ### Zmienione
 
@@ -76,6 +78,17 @@ dla operatora idą jako patch, bo operator aktualizuje ręcznie i nie ma czego
   pliku dopiero po zapisie operatora.
 - `tests/test_project_io.py` pokrywa zapis, round-trip, formaty legacy,
   migrację i błędy wejścia.
+
+### Zmienione — faza 7
+
+- Jeden spec PyInstallera: `main.spec`; `ShowControl.spec` usunięty, README
+  i `kompilowanie.txt` wskazują `main.spec`.
+- CI: `relase.yml` → `release.yml`, buduje z `main.spec`, nie kopiuje już
+  `shortcuts.json`; PyInstaller przypięty do 6.20.0.
+- Usunięte martwe pliki: `shortcuts.json`, `app036.png`,
+  `__pycache__/main.cpython-314.pyc`; `.gitignore` nie ignoruje `*.spec`.
+- `requirements.txt` przypięty: PyQt6 6.11.0, python-vlc 3.0.21203.
+- `ruff format` na całym repo — osobny commit, bez zmian zachowania.
 
 ### Zmienione — poza refaktorem
 

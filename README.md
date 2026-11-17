@@ -247,7 +247,7 @@ pip install pyinstaller
 Build the application:
 
 ```bash
-pyinstaller ShowControl.spec
+pyinstaller main.spec
 ```
 
 The executable will be generated in the `dist` directory.

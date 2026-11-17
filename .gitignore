@@ -9,7 +9,6 @@ __pycache__/
 # Distribution / packaging
 build/
 dist/
-*.spec
 
 # Installer logs
 pip-log.txt

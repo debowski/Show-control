@@ -29,8 +29,8 @@ jobs:
     - name: Compile with PyInstaller
       shell: pwsh
       run: |
-        # Use the exact command from kompilowanie.txt
-        python -m PyInstaller main.py -w --onedir --icon=ikona_sc.ico --clean --exclude-module PyQt6.QtWebEngine --exclude-module PyQt6.QtQml --exclude-module PyQt6.QtNetwork --exclude-module PyQt6.QtPdf --exclude-module PyQt6.QtMultimedia --exclude-module PyQt6.QtMultimediaWidgets --exclude-module PyQt6.QtSql --exclude-module PyQt6.QtXml --exclude-module PyQt6.QtBluetooth --exclude-module PyQt6.QtPositioning --exclude-module PyQt6.QtSensors
+        # Single source of build settings: main.spec (see kompilowanie.txt)
+        python -m PyInstaller main.spec --clean
 
     - name: Show build output
       shell: pwsh
@@ -45,12 +45,11 @@ jobs:
           exit 1
         }
 
-    - name: Copy shortcuts.json and icons into dist/main
+    - name: Copy icons into dist/main
       shell: pwsh
       run: |
         # ensure _internal directory exists for icons
         if (-not (Test-Path 'dist\main\_internal')) { New-Item -ItemType Directory -Path 'dist\main\_internal' | Out-Null }
-        if (Test-Path 'shortcuts.json') { Copy-Item 'shortcuts.json' -Destination 'dist\main\' -Force }
         # copy icons into the _internal folder
         if (Test-Path 'ikona_sc.ico') { Copy-Item 'ikona_sc.ico' -Destination 'dist\main\_internal\' -Force }
         if (Test-Path 'ikona_bw.ico') { Copy-Item 'ikona_bw.ico' -Destination 'dist\main\_internal\' -Force }

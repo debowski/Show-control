@@ -76,6 +76,7 @@ class MainWindow(QMainWindow):
         self.session.idle.connect(self._on_idle)
         self.session.stopping.connect(self._on_stopping)
         self.session.transition_finished.connect(self._on_transition_finished)
+        self.session.playing_row_removed.connect(self.stop_media)
         self.playlist_model.rowsInserted.connect(self.session.on_rows_inserted)
         self.playlist_model.rowsRemoved.connect(self.session.on_rows_removed)
         self.playlist_model.rowsMoved.connect(self.session.on_rows_moved)

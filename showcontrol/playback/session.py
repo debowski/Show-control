@@ -29,10 +29,13 @@ class PlaybackSession(QObject):
     podświetlenie, `media_changed` ustawia tryb projekcji, `progress_changed`
     rysuje pasek i czas, `idle` zeruje je, `stopping` pozwala wyzerować
     jasność, a `transition_finished` ją przywrócić.
+    `playing_row_removed` znaczy „usunięto bieżący wiersz" — transport
+    zatrzymuje okno, bo tylko ono zna fade i jasność.
     `failure` jest seamem recovery dla fazy B.
     """
 
     playing_row_changed = pyqtSignal(int)
+    playing_row_removed = pyqtSignal()
     media_changed = pyqtSignal(str)
     progress_changed = pyqtSignal(float, int, int)
     idle = pyqtSignal()
@@ -280,7 +283,11 @@ class PlaybackSession(QObject):
 
     def on_rows_removed(self, _parent, first, last):
         count = last - first + 1
+        had_playing_row = self.state.playing_row != -1
         self._set_playing_row(adjust_row_for_remove(self.state.playing_row, first, count))
+        if had_playing_row and self.state.playing_row == -1:
+            # Bez wiersza nie ma pozycji, do której należy dźwięk i obraz.
+            self.playing_row_removed.emit()
 
     def on_rows_moved(self, _source_parent, source_start, source_end, _destination_parent, destination_child):
         count = source_end - source_start + 1

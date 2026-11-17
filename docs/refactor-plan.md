@@ -222,8 +222,8 @@ wszystkie skróty z README działają, feedback przycisków.
 
 ### Faza 6 — `persistence/*`
 
-**Status:** zakres kodowy i testowy domknięty (2026-11-17). Zostaje brama:
-zapis/odczyt na sprzęcie oraz build exe.
+**Status:** domknięta (2026-11-17). Bramy zdane: zapis/odczyt projektu na
+sprzęcie, build exe, odtwarzanie wideo/audio/obrazu, overlay i fade.
 
 `project_io.py` (save/load na `domain/project_schema.py`), `settings.py`
 (`QSettings` z jawną listą kluczy: `theme`, `language`, `last_project`).
@@ -241,9 +241,9 @@ brakujący plik nie wywala aplikacji.
 
 ### Faza 7 — build i porządki
 
-**Status:** zakres kodowy domknięty (2026-11-17). Zostaje brama: release z
-taga buduje ten sam exe, który powstał lokalnie. `ruff format` osobnym
-commitem; zależności przypięte w `requirements.txt`.
+**Status:** zakres kodowy domknięty, brama sprzętowa zdana (2026-11-17).
+Zostaje brama release: tag buduje ten sam exe, który powstał lokalnie.
+`ruff format` osobnym commitem; zależności przypięte w `requirements.txt`.
 
 Jeden spec: `main.spec`; `ShowControl.spec` usunięty; README wskazuje
 `main.spec`; CI woła `pyinstaller main.spec` zamiast komendy inline

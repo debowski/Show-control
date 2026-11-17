@@ -241,6 +241,10 @@ brakujący plik nie wywala aplikacji.
 
 ### Faza 7 — build i porządki
 
+**Status:** zakres kodowy domknięty (2026-11-17). Zostaje brama: release z
+taga buduje ten sam exe, który powstał lokalnie. `ruff format` osobnym
+commitem; zależności przypięte w `requirements.txt`.
+
 Jeden spec: `main.spec`; `ShowControl.spec` usunięty; README wskazuje
 `main.spec`; CI woła `pyinstaller main.spec` zamiast komendy inline
 (`relase.yml:33`); `relase.yml` → `release.yml`; CI przestaje kopiować

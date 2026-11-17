@@ -15,10 +15,10 @@ jobs:
       with:
         fetch-depth: 0
 
-    - name: Setup Python 3.11
+    - name: Setup Python 3.14
       uses: actions/setup-python@v5
       with:
-        python-version: '3.11'
+        python-version: '3.14'
 
     - name: Install dependencies
       run: |
@@ -44,15 +44,6 @@ jobs:
           Write-Error "Build failed: dist\\main\\main.exe not found"
           exit 1
         }
-
-    - name: Copy icons into dist/main
-      shell: pwsh
-      run: |
-        # ensure _internal directory exists for icons
-        if (-not (Test-Path 'dist\main\_internal')) { New-Item -ItemType Directory -Path 'dist\main\_internal' | Out-Null }
-        # copy icons into the _internal folder
-        if (Test-Path 'ikona_sc.ico') { Copy-Item 'ikona_sc.ico' -Destination 'dist\main\_internal\' -Force }
-        if (Test-Path 'ikona_bw.ico') { Copy-Item 'ikona_bw.ico' -Destination 'dist\main\_internal\' -Force }
 
     - name: Pack dist/main into ZIP
       shell: pwsh

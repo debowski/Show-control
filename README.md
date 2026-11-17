@@ -241,7 +241,7 @@ The project includes a PyInstaller specification file.
 Install PyInstaller:
 
 ```bash
-pip install pyinstaller
+pip install "pyinstaller==6.20.0"
 ```
 
 Build the application:

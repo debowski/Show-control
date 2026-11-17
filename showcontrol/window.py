@@ -160,6 +160,9 @@ class MainWindow(QMainWindow):
         self.load_proj_btn.setToolTip(self.get_t("load_project_tooltip"))
         self.overlay_btn.setText(self.get_t("select_overlay"))
         self.overlay_btn.setToolTip(self.get_t("select_overlay_tooltip"))
+        self.clear_overlay_btn.setText(self.get_t("clear_overlay"))
+        self.clear_overlay_btn.setToolTip(self.get_t("clear_overlay_tooltip"))
+        self._sync_overlay_controls()
         self.window_btn.setText(self.get_t("toggle_projection"))
         self.window_btn.setToolTip(self.get_t("toggle_projection_tooltip"))
 
@@ -261,7 +264,7 @@ class MainWindow(QMainWindow):
         apply(self.fullscreen_btn, "fullscreen")
         self.overlay_on_audio_checkbox.setText(description("overlay_on_audio"))
         self.force_overlay_btn.setText(description("force_overlay"))
-        self._sync_force_overlay_control()
+        self._sync_overlay_controls()
 
     def update_shortcuts(self):
         remote_enabled = self.remote_checkbox.isChecked()
@@ -485,9 +488,18 @@ class MainWindow(QMainWindow):
         filter_str = self.get_t("overlay_filter", title=title)
         path, _ = QFileDialog.getOpenFileName(self, title, "", filter_str)
         if path:
-            self.overlay.set_global_asset(path)
-            self._sync_force_overlay_control()
-            self._set_projection_mode_for_path(self.session.current_media_path())
+            self._set_global_overlay(path)
+
+    def clear_overlay(self):
+        if not self.overlay.global_asset:
+            return
+        self._set_global_overlay(None)
+
+    def _set_global_overlay(self, path):
+        """Ustawia albo czyści globalny overlay i od razu przelicza projekcję."""
+        self.overlay.set_global_asset(path)
+        self._sync_overlay_controls()
+        self._set_projection_mode_for_path(self.session.current_media_path())
 
     def toggle_projection_fullscreen(self):
         if self.projection_window.isFullScreen():
@@ -516,10 +528,23 @@ class MainWindow(QMainWindow):
     def _sync_force_overlay_control(self):
         enabled = bool(self.overlay.global_asset)
         if not enabled and self.force_overlay_btn.isChecked():
+            # Wyłączamy po cichu: wywołujący sam przeliczy projekcję.
+            self.force_overlay_btn.blockSignals(True)
             self.force_overlay_btn.setChecked(False)
+            self.force_overlay_btn.blockSignals(False)
         self.force_overlay_btn.setEnabled(enabled)
         key = "force_overlay_tooltip" if enabled else "force_overlay_disabled"
         self.force_overlay_btn.setToolTip(self.get_t(key))
+
+    def _sync_overlay_controls(self):
+        """Odświeża przycisk czyszczenia, wskaźnik stanu i kontrolkę wymuszania."""
+        self._sync_force_overlay_control()
+        asset = self.overlay.global_asset
+        self.clear_overlay_btn.setEnabled(bool(asset))
+        if asset:
+            self.overlay_status_label.setText(self.get_t("overlay_status", name=os.path.basename(asset)))
+        else:
+            self.overlay_status_label.setText(self.get_t("overlay_status_none"))
 
     def update_overlay_visibility(self):
         path = self.session.current_media_path()
@@ -557,7 +582,9 @@ class MainWindow(QMainWindow):
     def _load_project_file(self, path):
         try:
             project = load_project_file(path)
+            self.force_overlay_btn.blockSignals(True)
             self.force_overlay_btn.setChecked(False)
+            self.force_overlay_btn.blockSignals(False)
 
             if project.migrated_overlay_count:
                 QMessageBox.information(
@@ -585,11 +612,11 @@ class MainWindow(QMainWindow):
             if existing_files:
                 self.playlist_model.refresh_rows(0, len(existing_files) - 1)
 
-            if project.overlay_path and os.path.exists(project.overlay_path):
-                self.overlay.set_global_asset(project.overlay_path)
-
-            self._sync_force_overlay_control()
-            self._set_projection_mode_for_path(self.session.current_media_path())
+            # Brak overlaya w projekcie (albo plik zniknął) czyści poprzedni overlay.
+            overlay_path = project.overlay_path
+            if overlay_path and not os.path.exists(overlay_path):
+                overlay_path = None
+            self._set_global_overlay(overlay_path)
 
             self.settings.set_last_project(path)
             self.update_window_title(path)

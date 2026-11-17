@@ -55,5 +55,4 @@ docs/_build/
 # Agent skills (odtwarzane z skills-lock.json)
 .agents/skills/
 
-# Brudnopis agenta: tickety i spece lokalnego trackera
-.scratch/
+

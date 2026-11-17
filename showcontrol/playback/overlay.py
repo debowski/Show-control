@@ -20,6 +20,7 @@ class OverlayController:
         self._engine = engine
         self._projection = projection
         self._global_asset = None
+        self._cleared_asset = None
         self._loaded_asset = None
         self._overlay_mode = False
 
@@ -28,8 +29,13 @@ class OverlayController:
         return self._global_asset
 
     def set_global_asset(self, path):
-        if path and os.path.exists(path):
+        if not path:
+            self._cleared_asset = self._global_asset
+            self._global_asset = None
+            return True
+        if os.path.exists(path):
             self._global_asset = path
+            self._cleared_asset = None
             return True
         return False
 
@@ -54,6 +60,7 @@ class OverlayController:
 
         show_overlay = plan.show_overlay
         state_changed = show_overlay != self._overlay_mode
+        previous_global_asset, self._cleared_asset = self._cleared_asset, None
 
         def commit():
             if show_overlay:
@@ -72,7 +79,11 @@ class OverlayController:
                 force_overlay_enabled
                 or (is_audio and overlay_on_audio_enabled)
                 or (show_overlay and plan.asset_path == self._global_asset)
-                or (not show_overlay and self._loaded_asset == self._global_asset)
+                or (
+                    not show_overlay
+                    and self._loaded_asset is not None
+                    and self._loaded_asset in (self._global_asset, previous_global_asset)
+                )
             )
             if is_global_overlay:
                 if getattr(self._projection, "curtain", None):

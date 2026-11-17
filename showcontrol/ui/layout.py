@@ -74,12 +74,21 @@ def _build_top_panel(window, root):
     window.overlay_btn.setObjectName("SelectOverlayButton")
     window.overlay_btn.clicked.connect(window.select_overlay)
 
+    window.clear_overlay_btn = QPushButton()
+    window.clear_overlay_btn.setObjectName("ClearOverlayButton")
+    window.clear_overlay_btn.clicked.connect(window.clear_overlay)
+
+    window.overlay_status_label = QLabel()
+    window.overlay_status_label.setObjectName("OverlayStatusLabel")
+
     window.window_btn = QPushButton()
     window.window_btn.setObjectName("HideBtn")
     window.window_btn.clicked.connect(window.toggle_projection_window)
 
     mgmt_center = QHBoxLayout()
     mgmt_center.addWidget(window.overlay_btn)
+    mgmt_center.addWidget(window.clear_overlay_btn)
+    mgmt_center.addWidget(window.overlay_status_label)
     mgmt_center.addWidget(window.window_btn)
     top_bar.addLayout(mgmt_center)
 

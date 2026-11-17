@@ -69,9 +69,9 @@ def test_overlay_on_audio_uses_global_asset():
     assert result == ProjectionPlan(True, "global.png")
 
 
-def test_overlay_on_audio_without_asset_still_enters_overlay_mode():
+def test_overlay_on_audio_without_asset_does_not_enter_overlay_mode():
     result = _plan(is_audio=True, overlay_on_audio_enabled=True)
-    assert result == ProjectionPlan(True, None)
+    assert result == ProjectionPlan(False, None)
 
 
 def test_overlay_on_audio_is_ignored_for_video():

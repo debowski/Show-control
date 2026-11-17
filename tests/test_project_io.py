@@ -46,6 +46,20 @@ def test_save_and_load_round_trip(tmp_path):
     assert load_project_file(path) == project
 
 
+def test_project_without_overlay_keeps_no_overlay(tmp_path):
+    path = tmp_path / "bez-overlaya.json"
+    project = Project(
+        items=(ProjectItem("a.mp4", False, None),),
+        overlay_path=None,
+    )
+
+    save_project_file(path, project)
+
+    data = json.loads(path.read_text(encoding="utf-8"))
+    assert data["overlay"] is None
+    assert load_project_file(path).overlay_path is None
+
+
 def test_load_legacy_logo_key(tmp_path):
     path = tmp_path / "legacy.json"
     path.write_text(

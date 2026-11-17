@@ -17,8 +17,8 @@ dla operatora idą jako patch, bo operator aktualizuje ręcznie i nie ma czego
   Windows-only, fade 0–1 s, F9 nadpisuje overlay.
 - `AGENTS.md`, `pyproject.toml` (ruff + pytest).
 - Gałąź `refactor/plan`.
-- `tests/` — 3 pliki: precedencja overlaya, schemat projektu, operacje na
-  playliście. Bez Qt i VLC, `pytest` w CI-lokalnym zakresie.
+- `tests/` — testy domeny, ustawień, motywu i zapisu/odczytu projektu.
+  Bez Qt i VLC, `pytest` w CI-lokalnym zakresie.
 
 ### Zmienione
 
@@ -42,9 +42,8 @@ dla operatora idą jako patch, bo operator aktualizuje ręcznie i nie ma czego
   zniknęły dwa rozjechane bloki `_load_overlay_media` / `update_logo_media`
   i dwa wskaźniki „aktualnie załadowanego assetu".
 - Nazwy `logo` → `overlay` w kodzie i UI (`OverlayViewer`, `set_mode_overlay`,
-  `overlay_on_audio_checkbox`, `force_overlay_btn`). Klucz `"logo"` w JSON
-  projektu zostaje dla zgodności formatu.
-
+  `overlay_on_audio_checkbox`, `force_overlay_btn`). Odczyt projektu nadal
+  przyjmuje stary klucz `"logo"`, ale zapis używa wyłącznie `"overlay"`.
 - `GLOSSARY.md`, „Precedencja": F9 jest włącznikiem overlaya globalnego, nie
   nadpisaniem overlaya pozycji. Poprzednia wersja opisywała zamierzenie, nie
   kod. Ustalenie: `main.py:1746`, zgodnie z regułą z ADR 0002.
@@ -52,6 +51,31 @@ dla operatora idą jako patch, bo operator aktualizuje ręcznie i nie ma czego
   9 kandydatów przypisanych do istniejących faz, bez nowych faz.
 - Dwa nowe defekty w sekcji 6: filtr dialogu „Dodaj pliki" (13) i overlay
   nieczyszczony przy wczytaniu projektu bez overlaya (14).
+
+### Zmienione — faza 5
+
+- `ui/layout.py` buduje trzy panele operatora; `window.py` spina moduły
+  i nie zawiera logiki VLC.
+- Jedna tabela `ui/shortcuts.py` niesie klucz, akcję i etykietę. Zniknęły
+  `KEY_TOOLTIP_LABELS` i drugie źródło opisów skrótów.
+- `apply_translations` używa stabilnych identyfikatorów zamiast rozpoznawania
+  widżetów po treści; teksty spoza systemu trafiły do `ui/i18n.py`.
+- Delegate, lista i etykiety paneli czytają tokeny motywu; `list_play` ma
+  konsumenta.
+
+### Zmienione — faza 6
+
+- `persistence/project_io.py` zapisuje i czyta projekt przez
+  `domain/project_schema.py`; `window.py` nie sięga już do `._data`.
+- `persistence/settings.py` trzyma `QSettings` za jawną listą kluczy
+  `theme`, `language`, `last_project`; bootstrap tworzy jedno `QSettings`.
+- Zapis projektu używa klucza `"overlay"`. Odczyt nadal przyjmuje stary
+  `"logo"`, ale nowy zapis go nie tworzy.
+- Migracja ADR 0005: pozycje z `"overlay": true` bez `overlay_path` tracą
+  flagę przy wczytaniu, z jednorazowym komunikatem; nowy kształt trafia do
+  pliku dopiero po zapisie operatora.
+- `tests/test_project_io.py` pokrywa zapis, round-trip, formaty legacy,
+  migrację i błędy wejścia.
 
 ### Zmienione — poza refaktorem
 

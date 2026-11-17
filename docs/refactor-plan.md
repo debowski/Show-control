@@ -1,7 +1,7 @@
 # Plan refaktoru Show Control
 
-**Status:** zatwierdzony kierunek; fazy 0–4 ukończone, faza 5 w toku
-(2026-11-16)
+**Status:** zatwierdzony kierunek; fazy 0–5 ukończone, faza 6 domknięta
+kodowo i testowo (2026-11-17). Zostaje brama sprzętowa fazy 6 i faza 7.
 **Punkt wyjścia:** `v0.7.1` (`5cfcc81`)
 **Właściciel:** solowy maintainer
 **Zakres:** A (rozbicie monolitu) + C (model domenowy) → potem B (niezawodność)
@@ -221,6 +221,9 @@ Trzy rzeczy, które ta faza musi domknąć, bo inaczej zostają na zawsze:
 wszystkie skróty z README działają, feedback przycisków.
 
 ### Faza 6 — `persistence/*`
+
+**Status:** zakres kodowy i testowy domknięty (2026-11-17). Zostaje brama:
+zapis/odczyt na sprzęcie oraz build exe.
 
 `project_io.py` (save/load na `domain/project_schema.py`), `settings.py`
 (`QSettings` z jawną listą kluczy: `theme`, `language`, `last_project`).

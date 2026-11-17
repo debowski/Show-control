@@ -15,7 +15,7 @@ from showcontrol import __version__
 from showcontrol.bootstrap import set_window_icon
 from showcontrol.domain.media import is_audio_file
 from showcontrol.domain.project_schema import Project, ProjectItem
-from showcontrol.persistence.project_io import load_project_file, save_project_file
+from showcontrol.persistence.project_io import load_project_file, partition_project_items, save_project_file
 from showcontrol.playback.engine import Engine
 from showcontrol.playback.fade import FadeController
 from showcontrol.playback.overlay import OverlayController
@@ -595,23 +595,18 @@ class MainWindow(QMainWindow):
                 )
 
             self.playlist_model.clear()
-            existing_files = []
-            overlay_map = {}  # path -> (bool, overlay_path)
-            for item in project.items:
-                if os.path.exists(item.path):
-                    existing_files.append(item.path)
-                    overlay_map[item.path] = (item.overlay, item.overlay_path)
-                else:
-                    print(self.get_t("skipped_missing_file", path=item.path))
+            existing_items, missing_items = partition_project_items(project, os.path.exists)
+            for item in missing_items:
+                print(self.get_t("skipped_missing_file", path=item.path))
 
-            self.playlist_model.add_files(existing_files)
+            self.playlist_model.add_files([item.path for item in existing_items])
 
-            # Przywróć flagę i ścieżkę nakładki dla każdego wczytanego pliku
-            for row, entry in enumerate(self.playlist_model.entries()):
-                overlay, overlay_path = overlay_map.get(entry.path, (False, None))
-                self.playlist_model.set_overlay_state(row, overlay, overlay_path)
-            if existing_files:
-                self.playlist_model.refresh_rows(0, len(existing_files) - 1)
+            # Overlay per wiersz: duplikaty i kolejność muszą przejść 1:1, więc
+            # stan czytamy z pozycji projektu, nie z mapy kluczowanej ścieżką.
+            for row, item in enumerate(existing_items):
+                self.playlist_model.set_overlay_state(row, item.overlay, item.overlay_path)
+            if existing_items:
+                self.playlist_model.refresh_rows(0, len(existing_items) - 1)
 
             # Brak overlaya w projekcie (albo plik zniknął) czyści poprzedni overlay.
             overlay_path = project.overlay_path

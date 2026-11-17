@@ -109,11 +109,8 @@ class PlaylistModel(QAbstractListModel):
 
     def mimeData(self, indexes):
         mime_data = super().mimeData(indexes)
-        urls = []
-        for index in indexes:
-            if index.isValid():
-                urls.append(QUrl.fromLocalFile(self._store.path_at(index.row())))
-        mime_data.setUrls(urls)
+        rows = [index.row() for index in indexes if index.isValid()]
+        mime_data.setUrls([QUrl.fromLocalFile(self._store.path_at(row)) for row in rows])
         return mime_data
 
     def dropMimeData(self, data, action, row, _column, parent):
@@ -122,9 +119,6 @@ class PlaylistModel(QAbstractListModel):
 
         target_row = row if row != -1 else self.rowCount()
 
-        if data.hasFormat("application/x-qabstractitemmodeldatalist") and data.hasUrls():
-            return self._move_dropped_rows(data.urls(), target_row)
-
         if data.hasUrls():
             paths = []
             for url in data.urls():
@@ -132,20 +126,6 @@ class PlaylistModel(QAbstractListModel):
             return self.add_files(paths, target_row, parent)
 
         return False
-
-    def _move_dropped_rows(self, urls, target_row):
-        for url in urls:
-            source_row = self.row_for_path(url.toLocalFile())
-            if source_row == -1:
-                continue
-
-            self.moveRows(QModelIndex(), source_row, 1, QModelIndex(), target_row)
-            if source_row < target_row:
-                target_row -= 1
-        return True
-
-    def row_for_path(self, path):
-        return self._store.row_for_path(path)
 
     def insertRows(self, row, count, parent=QModelIndex()):
         self.beginInsertRows(parent, row, row + count - 1)
@@ -277,6 +257,24 @@ class PlaylistFilterProxyModel(QSortFilterProxyModel):
             # match instead of indexof
             return self.filterRegularExpression().match(filename).hasMatch()
         return False
+
+    def moveRows(self, source_parent, source_row, count, destination_parent, destination_child):
+        """Przenosi wiersze w modelu źródłowym — QListView używa tego przy DnD.
+
+        Bez tej metody Qt nie umie przenieść wiersza przez proxy i cofa się do
+        `dropMimeData`, po czym usuwa przeciągnięty wiersz jako „przeniesiony".
+        """
+        model = self.sourceModel()
+        source_parent = self.mapToSource(source_parent)
+        destination_parent = self.mapToSource(destination_parent)
+
+        source_start = self.mapToSource(self.index(source_row, 0)).row()
+        if destination_child >= self.rowCount():
+            source_destination = model.rowCount()
+        else:
+            source_destination = self.mapToSource(self.index(destination_child, 0)).row()
+
+        return model.moveRows(source_parent, source_start, count, destination_parent, source_destination)
 
 
 class PlaylistItemDelegate(QStyledItemDelegate):

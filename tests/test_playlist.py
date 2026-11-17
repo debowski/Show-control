@@ -201,10 +201,47 @@ def test_file_paths_returns_paths_in_order():
     assert store.file_paths() == ["a.mp4", "b.mp3"]
 
 
-def test_row_for_path_returns_first_match_or_minus_one():
-    store = _store("a.mp4", "b.mp3")
-    assert store.row_for_path("b.mp3") == 1
-    assert store.row_for_path("nie-ma.mp4") == -1
+def test_same_path_can_be_added_three_times_as_separate_rows():
+    store = PlaylistStore()
+    store.add(["a.mp4"] * 3)
+    assert store.row_count() == 3
+    assert store.file_paths() == ["a.mp4", "a.mp4", "a.mp4"]
+
+
+def test_overlay_on_second_copy_does_not_change_first():
+    store = _store("a.mp4", "a.mp4", "a.mp4")
+    store.set_overlay_path(1, "item.png")
+    store.set_overlay(1, True)
+
+    assert store.overlay_for_row(0) is False
+    assert store.overlay_path_for_row(0) is None
+    assert store.overlay_for_row(1) is True
+    assert store.overlay_path_for_row(1) == "item.png"
+    assert store.overlay_path_for_row(2) is None
+
+
+def test_removing_one_copy_keeps_the_others():
+    store = _store("a.mp4", "a.mp4", "a.mp4")
+    store.set_overlay_path(1, "item.png")
+    store.set_overlay(1, True)
+
+    store.remove(1, 1)
+
+    assert store.row_count() == 2
+    assert store.file_paths() == ["a.mp4", "a.mp4"]
+    assert store.overlay_for_row(0) is False
+    assert store.overlay_for_row(1) is False
+
+
+def test_move_moves_the_copy_from_the_row_not_the_first_path():
+    store = _store("a.mp4", "a.mp4", "b.mp3")
+    store.set_overlay_path(1, "item.png")
+
+    store.move(1, 1, 0)
+
+    assert [entry.path for entry in store.rows()] == ["a.mp4", "a.mp4", "b.mp3"]
+    assert store.overlay_path_for_row(0) == "item.png"
+    assert store.overlay_path_for_row(1) is None
 
 
 def test_rows_is_a_snapshot_tuple():

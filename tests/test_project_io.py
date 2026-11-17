@@ -5,7 +5,7 @@ import json
 import pytest
 
 from showcontrol.domain.project_schema import Project, ProjectItem
-from showcontrol.persistence.project_io import load_project_file, save_project_file
+from showcontrol.persistence.project_io import load_project_file, partition_project_items, save_project_file
 
 
 def test_save_writes_new_overlay_shape(tmp_path):
@@ -44,6 +44,39 @@ def test_save_and_load_round_trip(tmp_path):
     save_project_file(path, project)
 
     assert load_project_file(path) == project
+
+
+def test_round_trip_preserves_duplicates_order_and_per_row_overlays(tmp_path):
+    path = tmp_path / "duplikaty.json"
+    project = Project(
+        items=(
+            ProjectItem("a.mp4"),
+            ProjectItem("a.mp4", True, "item.png"),
+            ProjectItem("b.mp3"),
+            ProjectItem("a.mp4", False, "inny.png"),
+        ),
+        overlay_path=None,
+    )
+
+    save_project_file(path, project)
+
+    assert load_project_file(path) == project
+
+
+def test_partition_project_items_keeps_order_and_splits_missing():
+    project = Project(
+        items=(
+            ProjectItem("a.mp4"),
+            ProjectItem("brak.mp4", True, "brak.png"),
+            ProjectItem("a.mp4", True, "item.png"),
+        )
+    )
+
+    existing, missing = partition_project_items(project, lambda path: path != "brak.mp4")
+
+    assert [item.path for item in existing] == ["a.mp4", "a.mp4"]
+    assert [item.overlay_path for item in existing] == [None, "item.png"]
+    assert [item.path for item in missing] == ["brak.mp4"]
 
 
 def test_project_without_overlay_keeps_no_overlay(tmp_path):

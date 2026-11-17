@@ -70,12 +70,6 @@ class PlaylistStore:
     def file_paths(self):
         return [entry.path for entry in self._entries]
 
-    def row_for_path(self, path):
-        for row, entry in enumerate(self._entries):
-            if entry.path == path:
-                return row
-        return -1
-
     @staticmethod
     def _entry_for(path):
         return PlaylistEntry(path=path, filename=os.path.basename(path))

@@ -17,3 +17,16 @@ def load_project_file(path):
     """Wczytaj obiekt `Project` z pliku JSON."""
     with open(path, "r", encoding="utf-8") as handle:
         return project_from_data(json.load(handle))
+
+
+def partition_project_items(project, path_exists):
+    """Dzieli pozycje projektu na istniejące i brakujące, w kolejności zapisu.
+
+    Predykat istnienia pliku jest wstrzykiwany, żeby kolejność pozycji dało się
+    sprawdzić bez dysku.
+    """
+    existing = []
+    missing = []
+    for item in project.items:
+        (existing if path_exists(item.path) else missing).append(item)
+    return tuple(existing), tuple(missing)

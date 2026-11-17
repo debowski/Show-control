@@ -1,5 +1,6 @@
-# Tabela [project] celowo nieobecna do fazy 7. Wersja ma jedno źródło:
-# showcontrol/__init__.py:__version__. Ten plik konfiguruje tylko narzędzia.
+# Ten plik konfiguruje tylko narzędzia. Zależności runtime są przypięte w
+# requirements.txt, a wersja aplikacji ma jedno źródło:
+# showcontrol/__init__.py:__version__.
 
 [tool.ruff]
 line-length = 120

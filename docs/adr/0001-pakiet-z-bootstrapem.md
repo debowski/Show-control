@@ -58,3 +58,10 @@ Kod przenosi się do pakietu `showcontrol/` w katalogu głównym repo
 repo bez instalacji. Przy jednym projekcie zero zysku.
 
 **Usunięcie `main.py`** — łamie CI, README i skróty naraz.
+
+## Aktualizacja 2026-11-17 (faza 7)
+
+Kontekst powyżej opisuje stan z 2026-11-13 i zostaje jako zapis decyzji.
+Po fazie 7: `ShowControl.spec` nie istnieje, README i CI wskazują
+`main.spec`, a CI buduje z niego jedną komendą zamiast komendy inline.
+Ścieżka `dist/main/main.exe` i ośmiolinijkowy bootstrap `main.py` bez zmian.

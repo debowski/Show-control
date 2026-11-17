@@ -10,7 +10,8 @@ Tickety i spece tego repo żyją jako pliki markdown w `.scratch/`.
   `.scratch/<feature-slug>/issues/<NN>-<slug>.md`, numeracja od `01`,
   nigdy jeden wspólny plik
 - Stan triage: linia `Status:` blisko góry pliku (wartości w
-  `triage-labels.md`)
+  `triage-labels.md`); w ticketach wayfindera `Status:` niesie
+  `claimed`/`resolved`, nie rolę triage
 - Komentarze i historia: dopisywane na dole pod nagłówkiem `## Comments`
 
 ## Gdy skill mówi „publish to the issue tracker"
@@ -29,7 +30,7 @@ Przeczytaj plik pod wskazaną ścieżką. Użytkownik zwykle poda ścieżkę lub
   (`claimed`/`resolved`)
 - **Blokady**: linia `Blocked by: NN, NN` blisko góry; ticket jest
   odblokowany, gdy wszystkie wymienione pliki są `resolved`
-- **Frontier**: otwarte, nieodblokowane i nieprzypisane pliki w
+- **Frontier**: otwarte, nieprzypisane i bez otwartych blokad pliki w
   `.scratch/<effort>/issues/`, wygrywa najniższy numer
 - **Claim**: ustaw `Status: claimed` i zapisz przed pracą
 - **Resolve**: dopisz odpowiedź pod `## Answer`, ustaw `Status: resolved`,

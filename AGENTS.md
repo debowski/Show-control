@@ -15,9 +15,9 @@ PyQt6, LibVLC przez `python-vlc`. GPL-3.0.
   pod Linux/macOS. Uzasadnienie: `docs/adr/0003-windows-only.md`.
 - **Jedno źródło wersji:** `showcontrol/__init__.py:__version__`. Nie wpisuj
   numeru wersji w żadnym innym pliku.
-- **Nie formatuj kodu.** `ruff` działa w trybie błędów (`E4,E7,E9,F`),
-  `ruff format` jest wyłączony do fazy 7. Duży diff formatowania zmieszany
-  z cięciem modułów jest nie do zrecenzowania.
+- **Formatowanie osobno.** `ruff` działa w trybie błędów (`E4,E7,E9,F`).
+  `ruff format` obowiązuje od fazy 7 i idzie w osobnym commicie — nigdy
+  zmieszany ze zmianą logiki.
 - **Nie zmieniaj zachowania** poza fazą 0. Nowe funkcje nie wchodzą w refaktor.
 - **`domain/*` nie importuje Qt ani vlc.** Warunek testów.
 - **Nie dodawaj `shortcuts.json` z powrotem** — jedyne źródło skrótów to
@@ -25,8 +25,8 @@ PyQt6, LibVLC przez `python-vlc`. GPL-3.0.
 
 ## Gdzie co jest
 
-Stan bieżący: fazy 0–5 ukończone, faza 6 domknięta kodowo i testowo; zostaje
-brama sprzętowa i faza 7. `main.py` to bootstrap; kod w `showcontrol/`
+Stan bieżący: fazy 0–7 ukończone, brama sprzętowa zdana; zostaje brama
+release (tag buduje exe). `main.py` to bootstrap; kod w `showcontrol/`
 (`window.py` spina moduły, `ui/layout.py` buduje panele operatora, `domain/`,
 `ui/`, `playback/*`, `persistence/*`). Testy w `tests/` — domain, ustawienia,
 motyw i projekt; bez Qt i VLC.
@@ -39,8 +39,8 @@ nazwy sprzecznej z glosariuszem, kod jest błędny.
 
 ```bash
 python main.py                    # uruchomienie
-pyinstaller main.spec             # build (po fazie 7; dziś: patrz kompilowanie.txt)
-pytest                            # testy (od fazy 1)
+pyinstaller main.spec             # build (wymaga PyInstaller 6.20.0)
+py -3.14 -m pytest                # testy (wymagają PyQt6 i python-vlc)
 ruff check .                      # lint błędów
 ```
 
@@ -84,3 +84,5 @@ Domyślne role triage jako wartości `Status:`. Patrz
 ### Domain docs
 
 Single-context: `GLOSSARY.md` + `docs/adr/`. Patrz `docs/agents/domain.md`.
+
+Skille instaluje się z `skills-lock.json`: `npx skills experimental_install`.

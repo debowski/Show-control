@@ -245,13 +245,14 @@ brakujący plik nie wywala aplikacji.
 Zostaje brama release: tag buduje ten sam exe, który powstał lokalnie.
 `ruff format` osobnym commitem; zależności przypięte w `requirements.txt`.
 
-Jeden spec: `main.spec`; `ShowControl.spec` usunięty; README wskazuje
-`main.spec`; CI woła `pyinstaller main.spec` zamiast komendy inline
-(`relase.yml:33`); `relase.yml` → `release.yml`; CI przestaje kopiować
-`shortcuts.json`. Usunięcie `shortcuts.json`, `app036.png`,
-`__pycache__/main.cpython-314.pyc`; `.gitignore` przestaje ignorować `*.spec`
-(dwa pliki są w repo). `ruff format` jako osobny commit. `requirements.txt`
-z przypiętymi wersjami albo przejście na `pyproject.toml`.
+Jeden spec: `main.spec` (z `datas` na obie ikony); `ShowControl.spec`
+usunięty; README i `kompilowanie.txt` wskazują `main.spec`; CI woła
+`pyinstaller main.spec` zamiast komendy inline; `relase.yml` → `release.yml`;
+CI nie kopiuje już `shortcuts.json` ani ikon po buildzie. Usunięcie
+`shortcuts.json`, `app036.png`, `__pycache__/main.cpython-314.pyc`;
+`.gitignore` przestaje ignorować `*.spec` (zostaje jeden plik). `ruff format`
+jako osobny commit. `requirements.txt` z przypiętymi wersjami; CI używa tego
+samego Pythona co build lokalny (3.14).
 
 **Brama:** release z taga buduje ten sam exe, który powstał lokalnie.
 Patrz `docs/adr/0001-pakiet-z-bootstrapem.md` — punkt o kompatybilności.

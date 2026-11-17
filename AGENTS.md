@@ -69,3 +69,18 @@ refaktoru. Jeśli natrafisz na nie przy przenoszeniu kodu: przenieś zachowanie
   `docs(adr):`). Nie „Tak correction".
 - Po każdej fazie: aplikacja sprawna. Nie zostawiaj gałęzi w stanie
   pośrednim, w którym exe nie działa.
+
+## Agent skills
+
+### Issue tracker
+
+Tickety i spece jako pliki w `.scratch/`. Patrz `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Domyślne role triage jako wartości `Status:`. Patrz
+`docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: `GLOSSARY.md` + `docs/adr/`. Patrz `docs/agents/domain.md`.

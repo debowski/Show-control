@@ -7,9 +7,7 @@ from dataclasses import dataclass
 from PyQt6.QtCore import QObject, QTimer, pyqtSignal
 
 from showcontrol.domain.media import is_audio_file, is_image_file
-from showcontrol.domain.playlist import (adjust_row_for_insert,
-                                         adjust_row_for_move,
-                                         adjust_row_for_remove)
+from showcontrol.domain.playlist import adjust_row_for_insert, adjust_row_for_move, adjust_row_for_remove
 from showcontrol.playback.engine import vlc
 
 
@@ -42,8 +40,7 @@ class PlaybackSession(QObject):
     transition_finished = pyqtSignal()
     failure = pyqtSignal(str)
 
-    def __init__(self, engine, store, advance=None, overlay_tick=None,
-                 on_failure=None, parent=None):
+    def __init__(self, engine, store, advance=None, overlay_tick=None, on_failure=None, parent=None):
         super().__init__(parent)
         self.engine = engine
         self.store = store
@@ -136,7 +133,7 @@ class PlaybackSession(QObject):
             self.stopping.emit(keep_overlay)
 
             # Zerujemy odtwarzacz matematycznie, BEZ wyciszania gniazda sprzętowego
-            has_audio = (self.engine.player.audio_get_track_count() > 0)
+            has_audio = self.engine.player.audio_get_track_count() > 0
             if has_audio:
                 self.engine.player.audio_set_volume(0)
 
@@ -285,12 +282,9 @@ class PlaybackSession(QObject):
         count = last - first + 1
         self._set_playing_row(adjust_row_for_remove(self.state.playing_row, first, count))
 
-    def on_rows_moved(self, _source_parent, source_start, source_end,
-                      _destination_parent, destination_child):
+    def on_rows_moved(self, _source_parent, source_start, source_end, _destination_parent, destination_child):
         count = source_end - source_start + 1
-        self._set_playing_row(
-            adjust_row_for_move(self.state.playing_row, source_start, count, destination_child)
-        )
+        self._set_playing_row(adjust_row_for_move(self.state.playing_row, source_start, count, destination_child))
 
     def on_model_reset(self):
         self._set_playing_row(-1)

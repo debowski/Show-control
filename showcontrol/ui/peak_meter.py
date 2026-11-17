@@ -24,9 +24,9 @@ YELLOW_THRESHOLD_DB = -18.0
 RED_THRESHOLD_DB = -6.0
 
 # Dynamika IEC (powrót: ok. 1.7s na 20 dB, spadek szczytu po 1.2s zatrzymania)
-DECAY_RATE_DB_PER_SEC = 20.0 / 1.7   # ~11.76 dB/s
+DECAY_RATE_DB_PER_SEC = 20.0 / 1.7  # ~11.76 dB/s
 PEAK_HOLD_TIME_SEC = 1.2
-PEAK_HOLD_DECAY_RATE = 20.0          # 20 dB/s po wygaśnięciu hold
+PEAK_HOLD_DECAY_RATE = 20.0  # 20 dB/s po wygaśnięciu hold
 
 
 class StereoPeakMeter(QWidget):

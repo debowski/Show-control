@@ -11,9 +11,15 @@ class ProjectionPlan:
     asset_path: str | None
 
 
-def projection_plan(*, force_overlay_enabled, item_overlay_enabled,
-                    item_overlay_path, is_audio, overlay_on_audio_enabled,
-                    global_overlay_path):
+def projection_plan(
+    *,
+    force_overlay_enabled,
+    item_overlay_enabled,
+    item_overlay_path,
+    is_audio,
+    overlay_on_audio_enabled,
+    global_overlay_path,
+):
     """Rozstrzyga tryb projekcji według priorytetu z ADR 0005.
 
     F9 (wymuszony overlay) wygrywa z overlaya pozycji i z F10. Overlay pozycji

@@ -2,8 +2,7 @@
 
 import os
 
-from PyQt6.QtCore import (Qt, QAbstractListModel, QModelIndex, QUrl,
-                          QSortFilterProxyModel, QRect, QEvent)
+from PyQt6.QtCore import Qt, QAbstractListModel, QModelIndex, QUrl, QSortFilterProxyModel, QRect, QEvent
 from PyQt6.QtGui import QColor, QFont
 from PyQt6.QtWidgets import QListView, QFileDialog, QStyledItemDelegate
 
@@ -60,13 +59,11 @@ class PlaylistModel(QAbstractListModel):
             if entry.overlay_path:
                 tooltip += " " + _translate(
                     self.parent(),
-                    'overlay_item_tooltip',
+                    "overlay_item_tooltip",
                     name=os.path.basename(entry.overlay_path),
                 )
             elif entry.overlay:
-                tooltip += " " + _translate(
-                    self.parent(), 'overlay_global_tooltip'
-                )
+                tooltip += " " + _translate(self.parent(), "overlay_global_tooltip")
             return tooltip
         elif role == Qt.ItemDataRole.CheckStateRole:
             if not entry.overlay_path:
@@ -96,7 +93,9 @@ class PlaylistModel(QAbstractListModel):
     def flags(self, index):
         default_flags = super().flags(index)
         if index.isValid():
-            flags = default_flags | Qt.ItemFlag.ItemIsDragEnabled | Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEnabled
+            flags = (
+                default_flags | Qt.ItemFlag.ItemIsDragEnabled | Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEnabled
+            )
             if self._store.overlay_path_for_row(index.row()):
                 flags |= Qt.ItemFlag.ItemIsUserCheckable
             return flags
@@ -203,7 +202,9 @@ class PlaylistModel(QAbstractListModel):
         self._store.set_overlay_path(row, path)
         if 0 <= row < self.rowCount():
             idx = self.index(row, 0)
-            self.dataChanged.emit(idx, idx, [Qt.ItemDataRole.ToolTipRole, Qt.ItemDataRole.CheckStateRole, Qt.ItemDataRole.UserRole + 1])
+            self.dataChanged.emit(
+                idx, idx, [Qt.ItemDataRole.ToolTipRole, Qt.ItemDataRole.CheckStateRole, Qt.ItemDataRole.UserRole + 1]
+            )
 
     def set_overlay_state(self, row, overlay, overlay_path):
         """Ustawia flagę i ścieżkę bez emitowania sygnału — patrz refresh_rows()."""
@@ -262,20 +263,21 @@ class PlaylistFilterProxyModel(QSortFilterProxyModel):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setFilterCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
-        
+
     def filterAcceptsRow(self, source_row, source_parent):
         # Akceptuj wszystko jeśli filtr pusty
         if not self.filterRegularExpression().pattern():
             return True
-            
+
         model = self.sourceModel()
         index = model.index(source_row, 0, source_parent)
         filename = model.data(index, Qt.ItemDataRole.DisplayRole)
-        
+
         if filename:
             # match instead of indexof
             return self.filterRegularExpression().match(filename).hasMatch()
         return False
+
 
 class PlaylistItemDelegate(QStyledItemDelegate):
     def __init__(self, parent=None):
@@ -285,29 +287,32 @@ class PlaylistItemDelegate(QStyledItemDelegate):
 
     def paint(self, painter, option, index):
         super().paint(painter, option, index)
-        
+
         overlay_path = index.data(Qt.ItemDataRole.UserRole + 1)
-        
+
         # 1. Obliczamy pozycje przycisków wyrównane do prawej
         rect = option.rect
         right_edge = rect.right() - self.margin
-        
+
         # Przycisk ✖ (reset) - widoczny tylko gdy jest przypisana nakładka
         reset_rect = QRect()
         if overlay_path:
-            reset_rect = QRect(right_edge - self.btn_size, 
-                               rect.top() + (rect.height() - self.btn_size) // 2, 
-                               self.btn_size, self.btn_size)
-            right_edge -= (self.btn_size + self.margin)
-            
+            reset_rect = QRect(
+                right_edge - self.btn_size,
+                rect.top() + (rect.height() - self.btn_size) // 2,
+                self.btn_size,
+                self.btn_size,
+            )
+            right_edge -= self.btn_size + self.margin
+
         # Przycisk 📁 (wybór nakładki) - zawsze widoczny
-        folder_rect = QRect(right_edge - self.btn_size, 
-                            rect.top() + (rect.height() - self.btn_size) // 2, 
-                            self.btn_size, self.btn_size)
-                            
+        folder_rect = QRect(
+            right_edge - self.btn_size, rect.top() + (rect.height() - self.btn_size) // 2, self.btn_size, self.btn_size
+        )
+
         # 2. Rysowanie
         painter.save()
-        
+
         # Rysowanie ikony 📁
         # Tło
         painter.setPen(Qt.PenStyle.NoPen)
@@ -316,7 +321,7 @@ class PlaylistItemDelegate(QStyledItemDelegate):
         # Tekst
         painter.setPen(QColor(theme_color("text")))
         painter.drawText(folder_rect, Qt.AlignmentFlag.AlignCenter, "📁")
-        
+
         # Rysowanie ikony ✖ jeśli potrzebna
         if overlay_path:
             painter.setPen(Qt.PenStyle.NoPen)
@@ -324,50 +329,56 @@ class PlaylistItemDelegate(QStyledItemDelegate):
             painter.drawRoundedRect(reset_rect, 3, 3)
             painter.setPen(QColor(theme_color("text")))
             painter.drawText(reset_rect, Qt.AlignmentFlag.AlignCenter, "✖")
-            
+
         painter.restore()
 
     def editorEvent(self, event, model, option, index):
         if event.type() == QEvent.Type.MouseButtonRelease and event.button() == Qt.MouseButton.LeftButton:
             pos = event.position().toPoint()
-            
+
             overlay_path = index.data(Qt.ItemDataRole.UserRole + 1)
             rect = option.rect
             right_edge = rect.right() - self.margin
-            
+
             reset_rect = QRect()
             if overlay_path:
-                reset_rect = QRect(right_edge - self.btn_size, 
-                                   rect.top() + (rect.height() - self.btn_size) // 2, 
-                                   self.btn_size, self.btn_size)
-                right_edge -= (self.btn_size + self.margin)
-                
-            folder_rect = QRect(right_edge - self.btn_size, 
-                                rect.top() + (rect.height() - self.btn_size) // 2, 
-                                self.btn_size, self.btn_size)
+                reset_rect = QRect(
+                    right_edge - self.btn_size,
+                    rect.top() + (rect.height() - self.btn_size) // 2,
+                    self.btn_size,
+                    self.btn_size,
+                )
+                right_edge -= self.btn_size + self.margin
+
+            folder_rect = QRect(
+                right_edge - self.btn_size,
+                rect.top() + (rect.height() - self.btn_size) // 2,
+                self.btn_size,
+                self.btn_size,
+            )
 
             # Sprawdź kliknięcie ✖
             if overlay_path and reset_rect.contains(pos):
-                if hasattr(model, 'sourceModel'):
+                if hasattr(model, "sourceModel"):
                     source_idx = model.mapToSource(index)
                     model.sourceModel().set_overlay_path(source_idx.row(), None)
                 else:
                     model.set_overlay_path(index.row(), None)
                 return True
-                
+
             # Sprawdź kliknięcie 📁
             if folder_rect.contains(pos):
                 parent_widget = option.widget
                 window = parent_widget.window() if parent_widget else None
-                dialog_title = _translate(window, 'select_overlay_dialog')
-                filter_text = _translate(window, 'overlay_item_filter')
+                dialog_title = _translate(window, "select_overlay_dialog")
+                filter_text = _translate(window, "overlay_item_filter")
                 path, _ = QFileDialog.getOpenFileName(parent_widget, dialog_title, "", filter_text)
                 if path:
-                    if hasattr(model, 'sourceModel'):
+                    if hasattr(model, "sourceModel"):
                         source_idx = model.mapToSource(index)
                         model.sourceModel().set_overlay_path(source_idx.row(), path)
                     else:
                         model.set_overlay_path(index.row(), path)
                 return True
-                
+
         return super().editorEvent(event, model, option, index)

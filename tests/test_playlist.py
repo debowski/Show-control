@@ -2,10 +2,13 @@
 
 import sys
 
-from showcontrol.domain.playlist import (PlaylistEntry, PlaylistStore,
-                                         adjust_row_for_insert,
-                                         adjust_row_for_move,
-                                         adjust_row_for_remove)
+from showcontrol.domain.playlist import (
+    PlaylistEntry,
+    PlaylistStore,
+    adjust_row_for_insert,
+    adjust_row_for_move,
+    adjust_row_for_remove,
+)
 
 
 def _store(*paths):

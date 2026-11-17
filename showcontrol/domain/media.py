@@ -2,9 +2,23 @@
 
 import os
 
-MEDIA_EXTENSIONS = ('.mp4', '.mp3', '.mkv', '.jpg', '.jpeg', '.png', '.bmp', '.gif', '.wav', '.flac', '.aac', '.ogg', '.m4a')
-AUDIO_EXTENSIONS = ('.mp3', '.wav', '.flac', '.aac', '.ogg', '.m4a')
-IMAGE_EXTENSIONS = ('.jpg', '.jpeg', '.png', '.bmp', '.gif')
+MEDIA_EXTENSIONS = (
+    ".mp4",
+    ".mp3",
+    ".mkv",
+    ".jpg",
+    ".jpeg",
+    ".png",
+    ".bmp",
+    ".gif",
+    ".wav",
+    ".flac",
+    ".aac",
+    ".ogg",
+    ".m4a",
+)
+AUDIO_EXTENSIONS = (".mp3", ".wav", ".flac", ".aac", ".ogg", ".m4a")
+IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png", ".bmp", ".gif")
 
 
 def has_extension(path, extensions):

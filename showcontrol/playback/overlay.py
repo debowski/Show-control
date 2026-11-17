@@ -33,9 +33,16 @@ class OverlayController:
             return True
         return False
 
-    def apply(self, *, force_overlay_enabled, item_overlay_enabled,
-              item_overlay_path, is_audio, overlay_on_audio_enabled,
-              brightness):
+    def apply(
+        self,
+        *,
+        force_overlay_enabled,
+        item_overlay_enabled,
+        item_overlay_path,
+        is_audio,
+        overlay_on_audio_enabled,
+        brightness,
+    ):
         plan = projection_plan(
             force_overlay_enabled=force_overlay_enabled,
             item_overlay_enabled=item_overlay_enabled,
@@ -68,7 +75,7 @@ class OverlayController:
                 or (not show_overlay and self._loaded_asset == self._global_asset)
             )
             if is_global_overlay:
-                if getattr(self._projection, 'curtain', None):
+                if getattr(self._projection, "curtain", None):
                     self._projection.curtain.cancel()
                 commit()
             else:
@@ -107,18 +114,14 @@ class OverlayController:
             viewer.update()
         else:
             viewer.overlay_pixmap = None
-            self._projection.overlay_stacked_layout.setCurrentWidget(
-                self._projection.overlay_video_widget
-            )
+            self._projection.overlay_stacked_layout.setCurrentWidget(self._projection.overlay_video_widget)
             media = self._engine.media(path)
             # Overlay media is always played without audio
-            media.add_option(':no-audio')
-            media.add_option('no-audio')
-            media.add_option('input-repeat=65535')
+            media.add_option(":no-audio")
+            media.add_option("no-audio")
+            media.add_option("input-repeat=65535")
             self._engine.overlay_player.set_media(media)
             self._engine.overlay_player.play()
             self._engine.mute_overlay()
-            self._engine.overlay_player.video_set_adjust_int(
-                vlc.VideoAdjustOption.Enable, 1
-            )
+            self._engine.overlay_player.video_set_adjust_int(vlc.VideoAdjustOption.Enable, 1)
             self._engine.set_overlay_brightness(brightness)

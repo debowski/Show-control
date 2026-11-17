@@ -19,12 +19,12 @@ class Engine:
     """
 
     def __init__(self):
-        self.instance = vlc.Instance('--no-xlib', '--quiet', '--video-filter=adjust')
+        self.instance = vlc.Instance("--no-xlib", "--quiet", "--video-filter=adjust")
         self.player = self.instance.media_player_new()
         self.player.audio_set_volume(0)  # Konfiguracja zabezpieczająca na start
         self.player.video_set_adjust_int(vlc.VideoAdjustOption.Enable, 1)
         self.overlay_player = self.instance.media_player_new()
-        self.overlay_player.audio_output_set('adummy')
+        self.overlay_player.audio_output_set("adummy")
         self.overlay_player.audio_set_volume(0)
         self.overlay_player.video_set_adjust_int(vlc.VideoAdjustOption.Enable, 1)
 

@@ -9,8 +9,7 @@ import sys
 
 from PyQt6.QtCore import QModelIndex, Qt, QTimer
 from PyQt6.QtGui import QKeySequence, QShortcut
-from PyQt6.QtWidgets import (QApplication, QFileDialog, QListView,
-                             QMainWindow, QMessageBox)
+from PyQt6.QtWidgets import QApplication, QFileDialog, QListView, QMainWindow, QMessageBox
 
 from showcontrol import __version__
 from showcontrol.bootstrap import set_window_icon
@@ -26,8 +25,7 @@ from showcontrol.ui.layout import build_main_layout
 from showcontrol.ui.peak_meter import AudioPeakProvider
 from showcontrol.ui.playlist_view import PlaylistModel
 from showcontrol.ui.projection import ProjectionWindow
-from showcontrol.ui.shortcuts import (KEYBOARD_SHORTCUTS, navigation_shortcut,
-                                      shortcut_description)
+from showcontrol.ui.shortcuts import KEYBOARD_SHORTCUTS, navigation_shortcut, shortcut_description
 from showcontrol.ui.theme import DEFAULT_THEME, THEMES, generate_stylesheet
 
 
@@ -60,14 +58,14 @@ class MainWindow(QMainWindow):
         self.projection_window = ProjectionWindow()
         self.projection_window.move_to_second_screen()
         self.projection_window.show()
-        self.engine.attach(self.projection_window.video_widget,
-                           self.projection_window.overlay_video_widget)
+        self.engine.attach(self.projection_window.video_widget, self.projection_window.overlay_video_widget)
 
         self.playlist_model = PlaylistModel(self)
         self.overlay = OverlayController(self.engine, self.projection_window)
         self._last_progress = None
         self.session = PlaybackSession(
-            self.engine, self.playlist_model.store,
+            self.engine,
+            self.playlist_model.store,
             advance=self.play_next_file,
             overlay_tick=self.overlay.tick,
             parent=self,
@@ -110,11 +108,17 @@ class MainWindow(QMainWindow):
 
     def init_shortcuts(self):
         for key in KEYBOARD_SHORTCUTS["pause"]["keys"]:
-            QShortcut(QKeySequence(key), self).activated.connect(lambda: self.activate_button(self.pause_btn, self.toggle_play_pause))
+            QShortcut(QKeySequence(key), self).activated.connect(
+                lambda: self.activate_button(self.pause_btn, self.toggle_play_pause)
+            )
         for key in KEYBOARD_SHORTCUTS["remove"]["keys"]:
-            QShortcut(QKeySequence(key), self.playlist).activated.connect(lambda: self.activate_button(self.remove_btn, self.remove_file))
+            QShortcut(QKeySequence(key), self.playlist).activated.connect(
+                lambda: self.activate_button(self.remove_btn, self.remove_file)
+            )
         for key in KEYBOARD_SHORTCUTS["play"]["playlist_keys"]:
-            QShortcut(QKeySequence(key), self.playlist).activated.connect(lambda: self.activate_button(self.play_btn, self.play_media))
+            QShortcut(QKeySequence(key), self.playlist).activated.connect(
+                lambda: self.activate_button(self.play_btn, self.play_media)
+            )
         self.sc_nav_prev = QShortcut(QKeySequence(navigation_shortcut("previous", False)), self)
         self.sc_nav_prev.activated.connect(lambda: self.activate_button(self.prev_btn, self.play_previous_file))
         self.sc_nav_next = QShortcut(QKeySequence(navigation_shortcut("next", False)), self)
@@ -128,8 +132,13 @@ class MainWindow(QMainWindow):
             "next": lambda: self.activate_button(self.next_btn, self.play_next_file),
             "fade_out": lambda: self.activate_button(self.fade_btn, self.fade_out),
             "fullscreen": lambda: self.activate_button(self.fullscreen_btn, self.toggle_projection_fullscreen),
-            "overlay_on_audio": lambda: self.overlay_on_audio_checkbox.setChecked(not self.overlay_on_audio_checkbox.isChecked()),
-            "force_overlay": lambda: self.activate_button(self.force_overlay_btn, lambda: self.force_overlay_btn.setChecked(not self.force_overlay_btn.isChecked())),
+            "overlay_on_audio": lambda: self.overlay_on_audio_checkbox.setChecked(
+                not self.overlay_on_audio_checkbox.isChecked()
+            ),
+            "force_overlay": lambda: self.activate_button(
+                self.force_overlay_btn,
+                lambda: self.force_overlay_btn.setChecked(not self.force_overlay_btn.isChecked()),
+            ),
             "save_project": lambda: self.activate_button(self.save_proj_btn, self.save_project),
         }
         for name, callback in f_keys.items():
@@ -139,43 +148,43 @@ class MainWindow(QMainWindow):
 
     def get_t(self, key, **kwargs):
         """Return translated string for current language, formatting with kwargs if provided."""
-        return translate(getattr(self, 'language', DEFAULT_LANGUAGE), key, **kwargs)
+        return translate(getattr(self, "language", DEFAULT_LANGUAGE), key, **kwargs)
 
     def apply_translations(self):
         """Apply translations to visible UI widgets. Safe to call multiple times."""
-        self.projection_window.setWindowTitle(self.get_t('projection_window_title'))
+        self.projection_window.setWindowTitle(self.get_t("projection_window_title"))
 
-        self.add_btn.setText(self.get_t('add_files'))
-        self.add_btn.setToolTip(self.get_t('add_files_tooltip'))
-        self.load_proj_btn.setText(self.get_t('load_project'))
-        self.load_proj_btn.setToolTip(self.get_t('load_project_tooltip'))
-        self.overlay_btn.setText(self.get_t('select_overlay'))
-        self.overlay_btn.setToolTip(self.get_t('select_overlay_tooltip'))
-        self.window_btn.setText(self.get_t('toggle_projection'))
-        self.window_btn.setToolTip(self.get_t('toggle_projection_tooltip'))
+        self.add_btn.setText(self.get_t("add_files"))
+        self.add_btn.setToolTip(self.get_t("add_files_tooltip"))
+        self.load_proj_btn.setText(self.get_t("load_project"))
+        self.load_proj_btn.setToolTip(self.get_t("load_project_tooltip"))
+        self.overlay_btn.setText(self.get_t("select_overlay"))
+        self.overlay_btn.setToolTip(self.get_t("select_overlay_tooltip"))
+        self.window_btn.setText(self.get_t("toggle_projection"))
+        self.window_btn.setToolTip(self.get_t("toggle_projection_tooltip"))
 
-        self.transport_group.setTitle(self.get_t('playback_control'))
-        self.view_group.setTitle(self.get_t('view_effects'))
-        self.audio_group.setTitle(self.get_t('control'))
-        self.settings_group.setTitle(self.get_t('settings'))
+        self.transport_group.setTitle(self.get_t("playback_control"))
+        self.view_group.setTitle(self.get_t("view_effects"))
+        self.audio_group.setTitle(self.get_t("control"))
+        self.settings_group.setTitle(self.get_t("settings"))
 
-        self.meter_title.setText(self.get_t('meter'))
-        self.peak_meter.setToolTip(self.get_t('peak_meter_tooltip'))
-        self.volume_title.setText(self.get_t('volume'))
-        self.brightness_title.setText(self.get_t('brightness'))
-        self.fade_title.setText(self.get_t('fade'))
-        self.image_speed_title.setText(self.get_t('image_speed'))
-        self.theme_label.setText(self.get_t('theme'))
-        self.lang_label.setText(self.get_t('language'))
+        self.meter_title.setText(self.get_t("meter"))
+        self.peak_meter.setToolTip(self.get_t("peak_meter_tooltip"))
+        self.volume_title.setText(self.get_t("volume"))
+        self.brightness_title.setText(self.get_t("brightness"))
+        self.fade_title.setText(self.get_t("fade"))
+        self.image_speed_title.setText(self.get_t("image_speed"))
+        self.theme_label.setText(self.get_t("theme"))
+        self.lang_label.setText(self.get_t("language"))
 
-        self.move_up_btn.setToolTip(self.get_t('move_up_tooltip'))
-        self.move_down_btn.setToolTip(self.get_t('move_down_tooltip'))
-        self.image_switch_delay.setToolTip(self.get_t('image_speed_tooltip'))
-        self.brightness_slider.setToolTip(self.get_t('brightness_tooltip'))
-        self.fade_speed_slider.setToolTip(self.get_t('fade_tooltip'))
+        self.move_up_btn.setToolTip(self.get_t("move_up_tooltip"))
+        self.move_down_btn.setToolTip(self.get_t("move_down_tooltip"))
+        self.image_switch_delay.setToolTip(self.get_t("image_speed_tooltip"))
+        self.brightness_slider.setToolTip(self.get_t("brightness_tooltip"))
+        self.fade_speed_slider.setToolTip(self.get_t("fade_tooltip"))
 
-        self.autoplay_checkbox.setText(self.get_t('autoplay'))
-        self.remote_checkbox.setText(self.get_t('remote_mode'))
+        self.autoplay_checkbox.setText(self.get_t("autoplay"))
+        self.remote_checkbox.setText(self.get_t("remote_mode"))
 
         self._refresh_time_label()
         self.update_shortcut_descriptions()
@@ -219,14 +228,12 @@ class MainWindow(QMainWindow):
     def update_shortcut_descriptions(self):
         """Jedyne miejsce, które wpisuje etykiety z klawiszami do widżetów."""
         remote_enabled = self.remote_checkbox.isChecked()
-        language = getattr(self, 'language', DEFAULT_LANGUAGE)
+        language = getattr(self, "language", DEFAULT_LANGUAGE)
         prev_key = navigation_shortcut("previous", remote_enabled)
         next_key = navigation_shortcut("next", remote_enabled)
 
         def description(name, tooltip=False, **kwargs):
-            return shortcut_description(
-                name, language=language, tooltip=tooltip, **kwargs
-            )
+            return shortcut_description(name, language=language, tooltip=tooltip, **kwargs)
 
         def apply(widget, name, tooltip_kwargs=None, **kwargs):
             widget.setText(description(name, **kwargs))
@@ -235,23 +242,25 @@ class MainWindow(QMainWindow):
             if tooltip is not None:
                 widget.setToolTip(tooltip)
 
-        self.search_input.setPlaceholderText(description('search'))
-        apply(self.remove_btn, 'remove')
-        apply(self.save_proj_btn, 'save_project')
-        apply(self.prev_btn, 'previous', extra_keys=[prev_key],
-              tooltip_kwargs={'extra_keys': [prev_key], 'separator': ' / '})
-        apply(self.play_btn, 'play', groups=('keys', 'playlist_keys'),
-              tooltip_kwargs={})
-        apply(self.pause_btn, 'pause')
-        apply(self.stop_btn, 'stop')
-        apply(self.next_btn, 'next', extra_keys=[next_key],
-              tooltip_kwargs={'extra_keys': [next_key], 'separator': ' / '})
-        apply(self.fade_btn, 'fade_out')
-        apply(self.fullscreen_btn, 'fullscreen')
-        self.overlay_on_audio_checkbox.setText(
-            description('overlay_on_audio')
+        self.search_input.setPlaceholderText(description("search"))
+        apply(self.remove_btn, "remove")
+        apply(self.save_proj_btn, "save_project")
+        apply(
+            self.prev_btn,
+            "previous",
+            extra_keys=[prev_key],
+            tooltip_kwargs={"extra_keys": [prev_key], "separator": " / "},
         )
-        self.force_overlay_btn.setText(description('force_overlay'))
+        apply(self.play_btn, "play", groups=("keys", "playlist_keys"), tooltip_kwargs={})
+        apply(self.pause_btn, "pause")
+        apply(self.stop_btn, "stop")
+        apply(
+            self.next_btn, "next", extra_keys=[next_key], tooltip_kwargs={"extra_keys": [next_key], "separator": " / "}
+        )
+        apply(self.fade_btn, "fade_out")
+        apply(self.fullscreen_btn, "fullscreen")
+        self.overlay_on_audio_checkbox.setText(description("overlay_on_audio"))
+        self.force_overlay_btn.setText(description("force_overlay"))
         self._sync_force_overlay_control()
 
     def update_shortcuts(self):
@@ -295,16 +304,18 @@ class MainWindow(QMainWindow):
 
     def _refresh_time_label(self):
         if self._last_progress is None:
-            self.time_label.setText(self.get_t('empty_time_label'))
+            self.time_label.setText(self.get_t("empty_time_label"))
             return
         elapsed_ms, total_ms = self._last_progress
         remaining_ms = max(0, total_ms - elapsed_ms)
-        self.time_label.setText(self.get_t(
-            'time_status',
-            elapsed=self.format_time(elapsed_ms),
-            total=self.format_time(total_ms),
-            remaining=self.format_time(remaining_ms),
-        ))
+        self.time_label.setText(
+            self.get_t(
+                "time_status",
+                elapsed=self.format_time(elapsed_ms),
+                total=self.format_time(total_ms),
+                remaining=self.format_time(remaining_ms),
+            )
+        )
 
     def _on_progress(self, fraction, elapsed_ms, total_ms):
         if fraction >= 0:
@@ -345,10 +356,8 @@ class MainWindow(QMainWindow):
         self._set_projection_brightness(self.brightness_slider.value() / 100.0)
 
     def add_files(self):
-        title = self.get_t('add_media_dialog')
-        files, _ = QFileDialog.getOpenFileNames(
-            self, title, "", self.get_t('media_filter')
-        )
+        title = self.get_t("add_media_dialog")
+        files, _ = QFileDialog.getOpenFileNames(self, title, "", self.get_t("media_filter"))
         self.playlist_model.add_files(files)
 
     def remove_file(self):
@@ -378,9 +387,7 @@ class MainWindow(QMainWindow):
         else:
             self.playlist_model.moveRows(QModelIndex(), src_row, 1, QModelIndex(), dst_row)
         # Przywróć zaznaczenie na przeniesionym elemencie
-        new_proxy_idx = self.proxy_model.mapFromSource(
-            self.playlist_model.index(dst_row, 0)
-        )
+        new_proxy_idx = self.proxy_model.mapFromSource(self.playlist_model.index(dst_row, 0))
         self.playlist.setCurrentIndex(new_proxy_idx)
 
     def move_item_up(self):
@@ -388,8 +395,6 @@ class MainWindow(QMainWindow):
 
     def move_item_down(self):
         self._move_selected_item(+1)
-
-
 
     def play_media(self):
         idx = self.playlist.currentIndex()
@@ -400,18 +405,14 @@ class MainWindow(QMainWindow):
         path = self.playlist_model.data(source_idx, Qt.ItemDataRole.UserRole)
 
         if not path or not os.path.exists(path):
-            QMessageBox.warning(self, self.get_t('file_error_title'), self.get_t('file_missing', path=path))
+            QMessageBox.warning(self, self.get_t("file_error_title"), self.get_t("file_missing", path=path))
             return
 
         self.session.play_row(row, self.image_switch_delay.value())
 
-
     def _set_projection_mode_for_path(self, path):
         self.overlay.apply(
-            force_overlay_enabled=bool(
-                getattr(self, 'force_overlay_btn', None)
-                and self.force_overlay_btn.isChecked()
-            ),
+            force_overlay_enabled=bool(getattr(self, "force_overlay_btn", None) and self.force_overlay_btn.isChecked()),
             item_overlay_enabled=self.playlist_model.overlay_for_row(self.session.playing_row),
             item_overlay_path=self.playlist_model.overlay_path_for_row(self.session.playing_row),
             is_audio=bool(path and is_audio_file(path)),
@@ -430,9 +431,7 @@ class MainWindow(QMainWindow):
             self._set_projection_mode_for_path(path)
 
     def _on_autoplay_changed(self, state):
-        self.session.set_autoplay(
-            self.autoplay_checkbox.isChecked(), self.image_switch_delay.value()
-        )
+        self.session.set_autoplay(self.autoplay_checkbox.isChecked(), self.image_switch_delay.value())
 
     def fade_out(self):
         if not self.session.is_playing or self.session.is_transitioning:
@@ -482,8 +481,8 @@ class MainWindow(QMainWindow):
             self.play_media()
 
     def select_overlay(self):
-        title = self.get_t('select_overlay_dialog')
-        filter_str = self.get_t('overlay_filter', title=title)
+        title = self.get_t("select_overlay_dialog")
+        filter_str = self.get_t("overlay_filter", title=title)
         path, _ = QFileDialog.getOpenFileName(self, title, "", filter_str)
         if path:
             self.overlay.set_global_asset(path)
@@ -496,8 +495,7 @@ class MainWindow(QMainWindow):
         else:
             self.projection_window.showFullScreen()
 
-        self.engine.attach(self.projection_window.video_widget,
-                           self.projection_window.overlay_video_widget)
+        self.engine.attach(self.projection_window.video_widget, self.projection_window.overlay_video_widget)
 
         self.activateWindow()
 
@@ -506,8 +504,7 @@ class MainWindow(QMainWindow):
             self.projection_window.hide()
         else:
             self.projection_window.show()
-            self.engine.attach(self.projection_window.video_widget,
-                               self.projection_window.overlay_video_widget)
+            self.engine.attach(self.projection_window.video_widget, self.projection_window.overlay_video_widget)
 
     def toggle_overlay(self, checked):
         if checked and not self.overlay.global_asset:
@@ -521,7 +518,7 @@ class MainWindow(QMainWindow):
         if not enabled and self.force_overlay_btn.isChecked():
             self.force_overlay_btn.setChecked(False)
         self.force_overlay_btn.setEnabled(enabled)
-        key = 'force_overlay_tooltip' if enabled else 'force_overlay_disabled'
+        key = "force_overlay_tooltip" if enabled else "force_overlay_disabled"
         self.force_overlay_btn.setToolTip(self.get_t(key))
 
     def update_overlay_visibility(self):
@@ -532,9 +529,7 @@ class MainWindow(QMainWindow):
         self.proxy_model.setFilterRegularExpression(text)
 
     def save_project(self):
-        path, _ = QFileDialog.getSaveFileName(
-            self, self.get_t('save_dialog'), "", self.get_t('project_filter')
-        )
+        path, _ = QFileDialog.getSaveFileName(self, self.get_t("save_dialog"), "", self.get_t("project_filter"))
         if path:
             try:
                 project = Project(
@@ -550,14 +545,12 @@ class MainWindow(QMainWindow):
             except Exception as e:
                 QMessageBox.critical(
                     self,
-                    self.get_t('save_error_title'),
-                    self.get_t('save_failed', error=e),
+                    self.get_t("save_error_title"),
+                    self.get_t("save_failed", error=e),
                 )
 
     def load_project(self):
-        path, _ = QFileDialog.getOpenFileName(
-            self, self.get_t('load_dialog'), "", self.get_t('project_filter')
-        )
+        path, _ = QFileDialog.getOpenFileName(self, self.get_t("load_dialog"), "", self.get_t("project_filter"))
         if path:
             self._load_project_file(path)
 
@@ -569,9 +562,8 @@ class MainWindow(QMainWindow):
             if project.migrated_overlay_count:
                 QMessageBox.information(
                     self,
-                    self.get_t('overlay_migration_title'),
-                    self.get_t('overlay_migration_message',
-                              count=project.migrated_overlay_count),
+                    self.get_t("overlay_migration_title"),
+                    self.get_t("overlay_migration_message", count=project.migrated_overlay_count),
                 )
 
             self.playlist_model.clear()
@@ -582,7 +574,7 @@ class MainWindow(QMainWindow):
                     existing_files.append(item.path)
                     overlay_map[item.path] = (item.overlay, item.overlay_path)
                 else:
-                    print(self.get_t('skipped_missing_file', path=item.path))
+                    print(self.get_t("skipped_missing_file", path=item.path))
 
             self.playlist_model.add_files(existing_files)
 
@@ -604,8 +596,8 @@ class MainWindow(QMainWindow):
         except Exception as e:
             QMessageBox.critical(
                 self,
-                self.get_t('load_error_title'),
-                self.get_t('load_failed', error=e),
+                self.get_t("load_error_title"),
+                self.get_t("load_failed", error=e),
             )
 
     def _on_theme_changed(self, _index):

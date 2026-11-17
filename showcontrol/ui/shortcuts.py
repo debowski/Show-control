@@ -95,15 +95,12 @@ KEY_LABEL_KEYS = {
 def key_label(key, language=DEFAULT_LANGUAGE, tooltip=False):
     label_keys = KEY_LABEL_KEYS.get(key)
     if label_keys is None:
-        return QKeySequence(key).toString(
-            QKeySequence.SequenceFormat.NativeText
-        )
+        return QKeySequence(key).toString(QKeySequence.SequenceFormat.NativeText)
     short_key, long_key = label_keys
     return get_t(language, long_key if tooltip else short_key)
 
 
-def shortcut_label(name, language=DEFAULT_LANGUAGE, groups=("keys",),
-                   extra_keys=None, separator="/", tooltip=False):
+def shortcut_label(name, language=DEFAULT_LANGUAGE, groups=("keys",), extra_keys=None, separator="/", tooltip=False):
     keys = []
     for group in groups:
         keys.extend(KEYBOARD_SHORTCUTS[name].get(group, []))
@@ -118,8 +115,7 @@ def shortcut_label(name, language=DEFAULT_LANGUAGE, groups=("keys",),
     return separator.join(labels)
 
 
-def shortcut_description(name, language=DEFAULT_LANGUAGE, tooltip=False,
-                         **kwargs):
+def shortcut_description(name, language=DEFAULT_LANGUAGE, tooltip=False, **kwargs):
     """Zwraca ``etykieta (klawisze)``; akcje bez podpisu dają ``None``."""
     spec = KEYBOARD_SHORTCUTS[name]
     label_key = spec.get("tooltip" if tooltip else "label")

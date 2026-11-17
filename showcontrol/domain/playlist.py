@@ -81,7 +81,7 @@ class PlaylistStore:
         return PlaylistEntry(path=path, filename=os.path.basename(path))
 
     def insert_blanks(self, row, count):
-        entries = [self._entry_for('') for _ in range(count)]
+        entries = [self._entry_for("") for _ in range(count)]
         self._entries[row:row] = entries
 
     def add(self, paths, row=None):
@@ -91,18 +91,17 @@ class PlaylistStore:
         return insert_row
 
     def remove(self, row, count):
-        del self._entries[row:row + count]
+        del self._entries[row : row + count]
 
     def clear(self):
         self._entries = []
 
     def can_move(self, source_row, count, destination_child):
-        return not (source_row == destination_child
-                    or source_row == destination_child - 1)
+        return not (source_row == destination_child or source_row == destination_child - 1)
 
     def move(self, source_row, count, destination_child):
-        items = self._entries[source_row:source_row + count]
-        del self._entries[source_row:source_row + count]
+        items = self._entries[source_row : source_row + count]
+        del self._entries[source_row : source_row + count]
 
         insert_row = destination_child
         if source_row < destination_child:
@@ -137,4 +136,3 @@ class PlaylistStore:
             entry = self._entries[row]
             entry.overlay = bool(overlay and overlay_path)
             entry.overlay_path = overlay_path
-

@@ -31,8 +31,8 @@ def project_from_data(data):
         raw_items = data
         overlay_path = None
     elif isinstance(data, dict):
-        raw_items = data.get('files', [])
-        overlay_path = data.get('overlay', data.get('logo', None))
+        raw_items = data.get("files", [])
+        overlay_path = data.get("overlay", data.get("logo", None))
     else:
         raw_items = []
         overlay_path = None
@@ -43,12 +43,12 @@ def project_from_data(data):
         if isinstance(raw, str):
             items.append(ProjectItem(raw))
         else:
-            overlay = raw.get('overlay', False)
-            item_overlay_path = raw.get('overlay_path', None)
+            overlay = raw.get("overlay", False)
+            item_overlay_path = raw.get("overlay_path", None)
             if overlay and not item_overlay_path:
                 overlay = False
                 migrated_overlay_count += 1
-            items.append(ProjectItem(raw.get('path', ''), overlay, item_overlay_path))
+            items.append(ProjectItem(raw.get("path", ""), overlay, item_overlay_path))
     return Project(tuple(items), overlay_path, migrated_overlay_count)
 
 

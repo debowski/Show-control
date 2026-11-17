@@ -9,15 +9,25 @@ których oczekują metody ``MainWindow``.
 from __future__ import annotations
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox,
-                             QGroupBox, QHBoxLayout, QLabel, QLineEdit,
-                             QPushButton, QSizePolicy, QSlider, QSpinBox,
-                             QVBoxLayout, QWidget)
+from PyQt6.QtWidgets import (
+    QAbstractItemView,
+    QCheckBox,
+    QComboBox,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QPushButton,
+    QSizePolicy,
+    QSlider,
+    QSpinBox,
+    QVBoxLayout,
+    QWidget,
+)
 
 from showcontrol.ui.i18n import LANGUAGE_KEYS, LANGUAGE_NAMES
 from showcontrol.ui.peak_meter import StereoPeakMeter
-from showcontrol.ui.playlist_view import (PlaylistFilterProxyModel,
-                                          PlaylistItemDelegate, PlaylistView)
+from showcontrol.ui.playlist_view import PlaylistFilterProxyModel, PlaylistItemDelegate, PlaylistView
 from showcontrol.ui.theme import THEME_KEYS, THEMES
 
 
@@ -146,11 +156,9 @@ def _build_control_panel(window, root):
     window.progress_slider.setFixedHeight(25)
     window.progress_slider.sliderMoved.connect(window.session.set_position)
     window.progress_slider.sliderPressed.connect(window.session.begin_seek)
-    window.progress_slider.sliderReleased.connect(
-        lambda: window.session.end_seek(window.progress_slider.value())
-    )
+    window.progress_slider.sliderReleased.connect(lambda: window.session.end_seek(window.progress_slider.value()))
 
-    window.time_label = QLabel(window.get_t('empty_time_label'))
+    window.time_label = QLabel(window.get_t("empty_time_label"))
     window.time_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
     window.time_label.setObjectName("TimeLabel")
 
@@ -179,10 +187,8 @@ def _build_control_panel(window, root):
     window.next_btn.setObjectName("TransportBtn")
     window.next_btn.clicked.connect(window.play_next_file)
 
-    for btn in (window.prev_btn, window.play_btn, window.pause_btn,
-                window.stop_btn, window.next_btn):
-        btn.setSizePolicy(QSizePolicy.Policy.Expanding,
-                          QSizePolicy.Policy.Preferred)
+    for btn in (window.prev_btn, window.play_btn, window.pause_btn, window.stop_btn, window.next_btn):
+        btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         btns_grid.addWidget(btn)
     trans_layout.addLayout(btns_grid)
     root.addWidget(transport_frame)
@@ -224,10 +230,19 @@ def _build_bottom_panel(window, root):
     root.addLayout(bottom_panel)
 
     window.setup_button_feedback(
-        window.add_btn, window.remove_btn, window.load_proj_btn,
-        window.save_proj_btn, window.overlay_btn, window.window_btn,
-        window.prev_btn, window.play_btn, window.pause_btn, window.stop_btn,
-        window.next_btn, window.fade_btn, window.fullscreen_btn,
+        window.add_btn,
+        window.remove_btn,
+        window.load_proj_btn,
+        window.save_proj_btn,
+        window.overlay_btn,
+        window.window_btn,
+        window.prev_btn,
+        window.play_btn,
+        window.pause_btn,
+        window.stop_btn,
+        window.next_btn,
+        window.fade_btn,
+        window.fullscreen_btn,
         window.force_overlay_btn,
     )
     window.init_shortcuts()
@@ -248,8 +263,7 @@ def _build_meter(window, audio_main_layout):
     window.peak_meter.peak_changed.connect(window._on_peak_changed)
     meter_layout.addWidget(meter_title)
     meter_layout.addWidget(window.meter_peak_label)
-    meter_layout.addWidget(window.peak_meter,
-                            alignment=Qt.AlignmentFlag.AlignHCenter)
+    meter_layout.addWidget(window.peak_meter, alignment=Qt.AlignmentFlag.AlignHCenter)
 
     audio_main_layout.addStretch()
     audio_main_layout.addLayout(meter_layout)
@@ -270,8 +284,7 @@ def _build_volume(window, audio_main_layout):
     window.volume_slider.valueChanged.connect(window.set_volume)
     vol_slider_layout.addWidget(vol_title)
     vol_slider_layout.addWidget(window.vol_label)
-    vol_slider_layout.addWidget(window.volume_slider,
-                                alignment=Qt.AlignmentFlag.AlignHCenter)
+    vol_slider_layout.addWidget(window.volume_slider, alignment=Qt.AlignmentFlag.AlignHCenter)
 
     audio_main_layout.addLayout(vol_slider_layout)
     audio_main_layout.addSpacing(12)
@@ -291,8 +304,7 @@ def _build_brightness(window, audio_main_layout):
     window.brightness_slider.valueChanged.connect(window.set_brightness)
     bri_slider_layout.addWidget(bri_title)
     bri_slider_layout.addWidget(window.bri_label)
-    bri_slider_layout.addWidget(window.brightness_slider,
-                                alignment=Qt.AlignmentFlag.AlignHCenter)
+    bri_slider_layout.addWidget(window.brightness_slider, alignment=Qt.AlignmentFlag.AlignHCenter)
 
     audio_main_layout.addLayout(bri_slider_layout)
     audio_main_layout.addSpacing(12)
@@ -310,14 +322,11 @@ def _build_fade_speed(window, audio_main_layout):
     # Zakres 0–10 (= 0.0s–1.0s, skalujemy /10 → czyli 10 = 1.0s)
     window.fade_speed_slider.setRange(0, 10)
     # Podłączamy przed setValue, żeby etykieta od razu pokazała wartość domyślną
-    window.fade_speed_slider.valueChanged.connect(
-        window._on_fade_speed_changed
-    )
-    window.fade_speed_slider.setValue(8)   # domyślnie 0.8s
+    window.fade_speed_slider.valueChanged.connect(window._on_fade_speed_changed)
+    window.fade_speed_slider.setValue(8)  # domyślnie 0.8s
     fade_slider_layout.addWidget(fade_title)
     fade_slider_layout.addWidget(window.fade_speed_label)
-    fade_slider_layout.addWidget(window.fade_speed_slider,
-                                 alignment=Qt.AlignmentFlag.AlignHCenter)
+    fade_slider_layout.addWidget(window.fade_speed_slider, alignment=Qt.AlignmentFlag.AlignHCenter)
 
     audio_main_layout.addLayout(fade_slider_layout)
     audio_main_layout.addSpacing(12)
@@ -354,9 +363,7 @@ def _build_settings(window):
     window.remote_checkbox.stateChanged.connect(lambda: window.update_shortcuts())
     window.overlay_on_audio_checkbox = QCheckBox()
     window.overlay_on_audio_checkbox.setChecked(False)
-    window.overlay_on_audio_checkbox.stateChanged.connect(
-        lambda: window.update_overlay_visibility()
-    )
+    window.overlay_on_audio_checkbox.stateChanged.connect(lambda: window.update_overlay_visibility())
 
     # --- Theme selector ---
     theme_row = QHBoxLayout()

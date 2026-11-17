@@ -31,7 +31,7 @@ class FadeController(QObject):
     def start(self, duration_seconds, start_brightness, audio_only):
         try:
             steps = max(5, int(duration_seconds * 10))
-            has_audio = (self._engine.player.audio_get_track_count() > 0)
+            has_audio = self._engine.player.audio_get_track_count() > 0
             self._state = {
                 "step": 0,
                 "steps": steps,

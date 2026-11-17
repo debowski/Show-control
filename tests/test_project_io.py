@@ -49,10 +49,12 @@ def test_save_and_load_round_trip(tmp_path):
 def test_load_legacy_logo_key(tmp_path):
     path = tmp_path / "legacy.json"
     path.write_text(
-        json.dumps({
-            "files": [{"path": "a.mp4"}],
-            "logo": "stary.png",
-        }),
+        json.dumps(
+            {
+                "files": [{"path": "a.mp4"}],
+                "logo": "stary.png",
+            }
+        ),
         encoding="utf-8",
     )
 
@@ -74,10 +76,12 @@ def test_load_bare_list(tmp_path):
 def test_load_mixed_legacy_list(tmp_path):
     path = tmp_path / "legacy.json"
     path.write_text(
-        json.dumps([
-            "stary.mp4",
-            {"path": "nowy.mp4", "overlay": True, "overlay_path": "item.png"},
-        ]),
+        json.dumps(
+            [
+                "stary.mp4",
+                {"path": "nowy.mp4", "overlay": True, "overlay_path": "item.png"},
+            ]
+        ),
         encoding="utf-8",
     )
 
@@ -92,12 +96,14 @@ def test_load_mixed_legacy_list(tmp_path):
 def test_load_migrates_orphan_overlay_flag(tmp_path):
     path = tmp_path / "legacy.json"
     path.write_text(
-        json.dumps({
-            "files": [
-                {"path": "a.mp4", "overlay": True, "overlay_path": None},
-                {"path": "b.mp4", "overlay": True, "overlay_path": "item.png"},
-            ],
-        }),
+        json.dumps(
+            {
+                "files": [
+                    {"path": "a.mp4", "overlay": True, "overlay_path": None},
+                    {"path": "b.mp4", "overlay": True, "overlay_path": "item.png"},
+                ],
+            }
+        ),
         encoding="utf-8",
     )
 

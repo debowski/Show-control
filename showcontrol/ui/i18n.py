@@ -164,15 +164,16 @@ TRANSLATIONS = {
         "save_failed": "Could not save the project:\n{error}",
         "load_error_title": "Load Error",
         "load_failed": "Could not load the project:\n{error}",
-    }
+    },
 }
 
 # Adding a language means adding a TRANSLATIONS entry and its display name.
 LANGUAGE_NAMES = {"pl": "Polski", "en": "English"}
 LANGUAGE_KEYS = tuple(TRANSLATIONS)
 
-VLC_MISSING_MESSAGE = ("Błąd: Biblioteka python-vlc nie jest zainstalowana. "
-                       "Zainstaluj ją używając: pip install python-vlc")
+VLC_MISSING_MESSAGE = (
+    "Błąd: Biblioteka python-vlc nie jest zainstalowana. Zainstaluj ją używając: pip install python-vlc"
+)
 
 
 def get_t(language, key, **kwargs):

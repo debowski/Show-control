@@ -17,8 +17,7 @@ class QSettingsManager:
     czemu warstwa ustawień jest testowalna bez uruchamiania Qt.
     """
 
-    def __init__(self, settings=None, *, org=SETTINGS_ORGANIZATION,
-                 app=SETTINGS_APPLICATION):
+    def __init__(self, settings=None, *, org=SETTINGS_ORGANIZATION, app=SETTINGS_APPLICATION):
         if settings is None:
             from PyQt6.QtCore import QSettings
 
@@ -57,6 +56,5 @@ class QSettingsManager:
         self.set_value("last_project", path)
 
 
-def create_settings_manager(org=SETTINGS_ORGANIZATION,
-                            app=SETTINGS_APPLICATION):
+def create_settings_manager(org=SETTINGS_ORGANIZATION, app=SETTINGS_APPLICATION):
     return QSettingsManager(org=org, app=app)

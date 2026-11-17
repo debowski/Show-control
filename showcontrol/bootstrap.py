@@ -13,7 +13,7 @@ from PyQt6.QtWidgets import QApplication
 from showcontrol.persistence.settings import create_settings_manager
 from showcontrol.ui.theme import generate_stylesheet
 
-logging.basicConfig(level=logging.ERROR, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.ERROR, format="%(asctime)s - %(levelname)s - %(message)s")
 
 
 def resource_path(filename):

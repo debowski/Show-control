@@ -165,12 +165,12 @@ class ProjectionWindow(QWidget):
         super().hideEvent(event)
 
     def moveEvent(self, event):
-        if getattr(self, 'curtain', None):
+        if getattr(self, "curtain", None):
             self.curtain.follow()
         super().moveEvent(event)
 
     def resizeEvent(self, event):
-        if getattr(self, 'curtain', None):
+        if getattr(self, "curtain", None):
             self.curtain.follow()
         super().resizeEvent(event)
 

@@ -2,8 +2,7 @@
 
 import pytest
 
-from showcontrol.persistence.settings import (DEFAULT_LANGUAGE, DEFAULT_THEME,
-                                              SETTING_KEYS, QSettingsManager)
+from showcontrol.persistence.settings import DEFAULT_LANGUAGE, DEFAULT_THEME, SETTING_KEYS, QSettingsManager
 from showcontrol.ui.i18n import DEFAULT_LANGUAGE as I18N_DEFAULT_LANGUAGE
 from showcontrol.ui.theme import DEFAULT_THEME as THEME_DEFAULT_THEME
 

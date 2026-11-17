@@ -38,7 +38,7 @@ PEAK_DECAY_RATE_DB = 24.0
 def _generate_center_frequencies(count: int, f_min: float, f_max: float) -> list[float]:
     """Generuje środkowe częstotliwości pasm rozmieszczone logarytmicznie."""
     ratio = (f_max / f_min) ** (1.0 / (count - 1))
-    return [f_min * (ratio ** i) for i in range(count)]
+    return [f_min * (ratio**i) for i in range(count)]
 
 
 CENTER_FREQUENCIES = _generate_center_frequencies(NUM_BANDS, FREQ_MIN_HZ, FREQ_MAX_HZ)

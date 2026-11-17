@@ -1,7 +1,6 @@
 """Schemat pliku projektu: format bieżący, legacy i serializacja. Bez Qt i VLC."""
 
-from showcontrol.domain.project_schema import (Project, ProjectItem,
-                                               project_from_data, project_to_data)
+from showcontrol.domain.project_schema import Project, ProjectItem, project_from_data, project_to_data
 
 
 def test_bare_list_is_legacy_format():
@@ -23,18 +22,22 @@ def test_dict_format_reads_files_and_global_overlay():
 
 
 def test_legacy_logo_key_still_reads_for_backward_compatibility():
-    project = project_from_data({
-        "files": [{"path": "a.mp4"}],
-        "logo": "legacy.png",
-    })
+    project = project_from_data(
+        {
+            "files": [{"path": "a.mp4"}],
+            "logo": "legacy.png",
+        }
+    )
     assert project.overlay_path == "legacy.png"
 
 
 def test_mixed_list_supports_strings_and_dicts():
-    project = project_from_data([
-        "legacy.mp4",
-        {"path": "new.mp4", "overlay": True, "overlay_path": "item.png"},
-    ])
+    project = project_from_data(
+        [
+            "legacy.mp4",
+            {"path": "new.mp4", "overlay": True, "overlay_path": "item.png"},
+        ]
+    )
     assert project.items[0] == ProjectItem("legacy.mp4", False, None)
     assert project.items[1] == ProjectItem("new.mp4", True, "item.png")
 
@@ -53,21 +56,21 @@ def test_item_without_path_becomes_empty_string_and_loses_orphan_overlay_flag():
 
 
 def test_orphan_overlay_flag_is_cleared_and_counted():
-    project = project_from_data({
-        "files": [
-            {"path": "a.mp4", "overlay": True, "overlay_path": None},
-            {"path": "b.mp4", "overlay": False, "overlay_path": None},
-            {"path": "c.mp4", "overlay": True, "overlay_path": "item.png"},
-        ]
-    })
+    project = project_from_data(
+        {
+            "files": [
+                {"path": "a.mp4", "overlay": True, "overlay_path": None},
+                {"path": "b.mp4", "overlay": False, "overlay_path": None},
+                {"path": "c.mp4", "overlay": True, "overlay_path": "item.png"},
+            ]
+        }
+    )
     assert [item.overlay for item in project.items] == [False, False, True]
     assert project.migrated_overlay_count == 1
 
 
 def test_item_with_overlay_path_keeps_flag():
-    project = project_from_data({
-        "files": [{"path": "a.mp4", "overlay": True, "overlay_path": "item.png"}]
-    })
+    project = project_from_data({"files": [{"path": "a.mp4", "overlay": True, "overlay_path": "item.png"}]})
     assert project.items[0].overlay is True
     assert project.migrated_overlay_count == 0
 

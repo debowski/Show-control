@@ -83,6 +83,9 @@ class MainWindow(QMainWindow):
         self.playlist_model.modelReset.connect(self.session.on_model_reset)
 
         self.init_ui()
+        app = QApplication.instance()
+        app.screenAdded.connect(self._on_screens_changed)
+        app.screenRemoved.connect(self._on_screens_changed)
         self.fade = FadeController(self.engine, self._set_projection_brightness, parent=self)
         self.fade.finished.connect(self._on_fade_finished)
         self.audio_peak_provider = AudioPeakProvider()
@@ -154,6 +157,7 @@ class MainWindow(QMainWindow):
     def apply_translations(self):
         """Apply translations to visible UI widgets. Safe to call multiple times."""
         self.projection_window.setWindowTitle(self.get_t("projection_window_title"))
+        self._refresh_screen_warning()
 
         self.add_btn.setText(self.get_t("add_files"))
         self.add_btn.setToolTip(self.get_t("add_files_tooltip"))
@@ -501,6 +505,17 @@ class MainWindow(QMainWindow):
         self.overlay.set_global_asset(path)
         self._sync_overlay_controls()
         self._set_projection_mode_for_path(self.session.current_media_path())
+
+    def _on_screens_changed(self, _screen=None):
+        """Przestawia projekcję po podłączeniu albo odłączeniu ekranu."""
+        self.projection_window.move_to_second_screen()
+        self._refresh_screen_warning()
+
+    def _refresh_screen_warning(self):
+        single_screen = len(QApplication.screens()) < 2
+        self.screen_warning.setVisible(single_screen)
+        if single_screen:
+            self.screen_warning.setText(self.get_t("screen_warning"))
 
     def toggle_projection_fullscreen(self):
         if self.projection_window.isFullScreen():

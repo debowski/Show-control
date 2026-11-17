@@ -39,6 +39,12 @@ def build_main_layout(window):
     root.setContentsMargins(15, 15, 15, 15)
     root.setSpacing(10)
 
+    window.screen_warning = QLabel()
+    window.screen_warning.setObjectName("ScreenWarningLabel")
+    window.screen_warning.setWordWrap(True)
+    window.screen_warning.hide()
+    root.addWidget(window.screen_warning)
+
     _build_top_panel(window, root)
     _build_playlist_panel(window, root)
     _build_control_panel(window, root)

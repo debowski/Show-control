@@ -182,14 +182,32 @@ class ProjectionWindow(QWidget):
                 self.showFullScreen()
 
     def move_to_second_screen(self):
+        """Umieszcza projekcję na drugim ekranie albo w oknie na konsoli.
+
+        Zwraca ``True``, gdy projekcja trafiła na drugi ekran. Ukryte okno
+        zostaje ukryte — zmienia się tylko ekran i tryb, w którym się pokaże.
+        """
         screens = QApplication.screens()
+        visible = self.isVisible()
+
         if len(screens) > 1:
-            second_screen = screens[1]
-            self.resize(800, 600)
-            self.move(second_screen.geometry().topLeft() + second_screen.geometry().center() - self.rect().center())
-            self.showFullScreen()
+            self.setScreen(screens[1])
+            if visible:
+                self.showFullScreen()
+            else:
+                self.setWindowState(Qt.WindowState.WindowFullScreen)
+            return True
+
+        screen = QApplication.primaryScreen()
+        if visible and self.isFullScreen():
+            self.showNormal()
         else:
+            self.setWindowState(Qt.WindowState.WindowNoState)
+        if screen is not None:
+            self.setScreen(screen)
             self.resize(800, 600)
+            self.move(screen.availableGeometry().center() - self.rect().center())
+        return False
 
     def closeEvent(self, event):
         event.ignore()

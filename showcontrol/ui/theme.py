@@ -317,6 +317,16 @@ def generate_stylesheet(theme_key: str) -> str:
     }}
     QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ height: 0; }}
 
+    /* --- Screen warning banner --- */
+    QLabel#ScreenWarningLabel {{
+        background-color: {t["bg_dark"]};
+        color: {t["fade"]};
+        border: 1px solid {t["fade"]};
+        border-radius: 4px;
+        padding: 6px 10px;
+        font-weight: bold;
+    }}
+
     /* --- Time label --- */
     QLabel#TimeLabel {{
         font-size: 13pt;

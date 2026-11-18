@@ -166,9 +166,6 @@ class PlaylistModel(QAbstractListModel):
         self._store.clear()
         self.endResetModel()
 
-    def file_paths(self):
-        return self._store.file_paths()
-
     def overlay_for_row(self, row):
         """Zwraca True jeśli dany wiersz ma ustawioną nakładkę."""
         return self._store.overlay_for_row(row)

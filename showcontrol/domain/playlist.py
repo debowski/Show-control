@@ -89,9 +89,6 @@ class PlaylistStore:
     def path_at(self, row):
         return self._entries[row].path
 
-    def file_paths(self):
-        return [entry.path for entry in self._entries]
-
     @staticmethod
     def _entry_for(path):
         return PlaylistEntry(path=path, filename=os.path.basename(path))

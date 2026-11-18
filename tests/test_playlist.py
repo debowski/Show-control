@@ -246,16 +246,11 @@ def test_set_overlay_methods_ignore_out_of_range_rows():
     assert store.rows() == (PlaylistEntry("a.mp4", "a.mp4"),)
 
 
-def test_file_paths_returns_paths_in_order():
-    store = _store("a.mp4", "b.mp3")
-    assert store.file_paths() == ["a.mp4", "b.mp3"]
-
-
 def test_same_path_can_be_added_three_times_as_separate_rows():
     store = PlaylistStore()
     store.add(["a.mp4"] * 3)
     assert store.row_count() == 3
-    assert store.file_paths() == ["a.mp4", "a.mp4", "a.mp4"]
+    assert [entry.path for entry in store.rows()] == ["a.mp4", "a.mp4", "a.mp4"]
 
 
 def test_overlay_on_second_copy_does_not_change_first():
@@ -278,7 +273,7 @@ def test_removing_one_copy_keeps_the_others():
     store.remove(1, 1)
 
     assert store.row_count() == 2
-    assert store.file_paths() == ["a.mp4", "a.mp4"]
+    assert [entry.path for entry in store.rows()] == ["a.mp4", "a.mp4"]
     assert store.overlay_for_row(0) is False
     assert store.overlay_for_row(1) is False
 

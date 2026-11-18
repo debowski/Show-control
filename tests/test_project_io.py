@@ -175,11 +175,10 @@ def test_load_invalid_json_raises_readable_error(tmp_path):
     assert info.value.key == "invalid_json"
     assert info.value.params["line"] == 1
     assert info.value.params["column"] > 0
-    assert info.value.params["reason"]
 
 
 def test_load_non_utf8_file_raises_readable_error(tmp_path):
-    path = tmp_path / "innne-kodowanie.json"
+    path = tmp_path / "inne-kodowanie.json"
     path.write_bytes(b'{"files": ["za\xb9\xbf\xf3\xb3.mp4"]}')
 
     with pytest.raises(ProjectFileError) as info:

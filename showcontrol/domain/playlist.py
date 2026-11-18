@@ -70,6 +70,11 @@ class PlaylistEntry:
     overlay: bool = False
     overlay_path: str | None = None
 
+    @classmethod
+    def from_path(cls, path, overlay=False, overlay_path=None):
+        """Pozycja z nazwą pliku wyliczoną ze ścieżki."""
+        return cls(path=path, filename=os.path.basename(path), overlay=overlay, overlay_path=overlay_path)
+
 
 class PlaylistStore:
     """Właściciel wierszy playlisty. Nie zna stanu odtwarzania."""
@@ -79,6 +84,10 @@ class PlaylistStore:
 
     def rows(self):
         return tuple(self._entries)
+
+    def replace_entries(self, entries):
+        """Podmienia całą zawartość playlisty jednym cięciem."""
+        self._entries = list(entries)
 
     def row_count(self):
         return len(self._entries)
@@ -91,7 +100,7 @@ class PlaylistStore:
 
     @staticmethod
     def _entry_for(path):
-        return PlaylistEntry(path=path, filename=os.path.basename(path))
+        return PlaylistEntry.from_path(path)
 
     def insert_blanks(self, row, count):
         entries = [self._entry_for("") for _ in range(count)]

@@ -166,6 +166,12 @@ class PlaylistModel(QAbstractListModel):
         self._store.clear()
         self.endResetModel()
 
+    def replace_entries(self, entries):
+        """Podmienia całą playlistę jednym resetem modelu."""
+        self.beginResetModel()
+        self._store.replace_entries(entries)
+        self.endResetModel()
+
     def overlay_for_row(self, row):
         """Zwraca True jeśli dany wiersz ma ustawioną nakładkę."""
         return self._store.overlay_for_row(row)

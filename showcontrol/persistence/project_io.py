@@ -26,12 +26,7 @@ def load_project_file(path):
     except UnicodeDecodeError as error:
         raise ProjectFileError("encoding") from error
     except json.JSONDecodeError as error:
-        raise ProjectFileError(
-            "invalid_json",
-            line=error.lineno,
-            column=error.colno,
-            reason=error.msg,
-        ) from error
+        raise ProjectFileError("invalid_json", line=error.lineno, column=error.colno) from error
 
     validate_project_data(data)
     return project_from_data(data)

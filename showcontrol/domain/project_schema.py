@@ -33,9 +33,11 @@ class Project:
 def project_from_data(data):
     """Czyta projekt z JSON-a. Obsługuje format listy (legacy) i słownika.
 
-    Elementy listy mogą być stringami (legacy) albo słownikami. Zachowanie
-    dla uszkodzonych danych jest takie jak w `v0.7.2`: element inny niż
-    string/słownik powoduje wyjątek, który wołający pokazuje jako błąd odczytu.
+    Elementy listy mogą być stringami (legacy) albo słownikami. Funkcja jest
+    tolerancyjna: dane bez `path` dostają pustą ścieżkę, a nieznany typ główny
+    daje pusty projekt. Pliki z dysku przechodzą najpierw przez
+    `validate_project_data`, więc operator dostaje `ProjectFileError`
+    ze wskazaniem pola zamiast cichego, zniekształconego projektu.
 
     Migracja ADR 0005: pozycja z `overlay: true` bez `overlay_path` traci flagę,
     bo checkbox znaczy teraz wyłącznie „używa własnego assetu".

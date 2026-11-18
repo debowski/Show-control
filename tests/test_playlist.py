@@ -304,6 +304,38 @@ def test_clear_removes_entries():
     assert store.row_count() == 0
 
 
+def test_replace_entries_swaps_all_rows_in_order():
+    store = _store("a.mp4", "b.mp4")
+    replacement = (
+        PlaylistEntry("b.mp4", "b.mp4", True, "item.png"),
+        PlaylistEntry("a.mp4", "a.mp4"),
+    )
+
+    store.replace_entries(replacement)
+
+    assert store.rows() == replacement
+    assert store.overlay_for_row(0) is True
+    assert store.overlay_path_for_row(0) == "item.png"
+
+
+def test_replace_entries_accepts_an_empty_snapshot():
+    store = _store("a.mp4")
+    snapshot = store.rows()
+
+    store.replace_entries(())
+
+    assert store.row_count() == 0
+    store.replace_entries(snapshot)
+    assert store.rows() == snapshot
+
+
+def test_entry_from_path_derives_filename_and_keeps_overlay_state():
+    entry = PlaylistEntry.from_path("katalog\\utwor.mp3", True, "item.png")
+    assert entry.filename == "utwor.mp3"
+    assert entry.overlay is True
+    assert entry.overlay_path == "item.png"
+
+
 def test_domain_modules_do_not_import_qt_or_vlc():
     assert "PyQt6" not in sys.modules
     assert "vlc" not in sys.modules

@@ -5,6 +5,7 @@ sklejenie modułów, obsługa zdarzeń UI i zapis/odczyt projektu.
 """
 
 import errno
+import logging
 import os
 import sys
 
@@ -15,6 +16,7 @@ from PyQt6.QtWidgets import QApplication, QFileDialog, QListView, QMainWindow, Q
 from showcontrol import __version__
 from showcontrol.bootstrap import set_window_icon
 from showcontrol.domain.media import is_audio_file
+from showcontrol.domain.playlist import PlaylistEntry
 from showcontrol.domain.project_schema import Project, ProjectFileError, ProjectItem
 from showcontrol.persistence.project_io import load_project_file, partition_project_items, save_project_file
 from showcontrol.playback.engine import Engine
@@ -28,6 +30,8 @@ from showcontrol.ui.playlist_view import PlaylistModel
 from showcontrol.ui.projection import ProjectionWindow
 from showcontrol.ui.shortcuts import KEYBOARD_SHORTCUTS, navigation_shortcut, shortcut_description
 from showcontrol.ui.theme import DEFAULT_THEME, THEMES, generate_stylesheet
+
+logger = logging.getLogger(__name__)
 
 
 def main(argv=None):
@@ -629,6 +633,7 @@ class MainWindow(QMainWindow):
     def _os_error_reason(self, error):
         """Zamienia błąd systemu na zdanie zrozumiałe dla operatora."""
         if isinstance(error, PermissionError):
+            # WinError 32/33: sharing/lock violation — plik otwarty w innym procesie.
             if getattr(error, "winerror", None) in (32, 33):
                 return self.get_t("error_file_in_use")
             return self.get_t("error_permission_denied")
@@ -654,11 +659,10 @@ class MainWindow(QMainWindow):
             if overlay_path and not os.path.exists(overlay_path):
                 overlay_path = None
         except ProjectFileError as error:
-            details = self.get_t(f"project_error_{error.key}", **error.params)
             QMessageBox.critical(
                 self,
                 self.get_t("load_invalid_title"),
-                self.get_t("load_invalid_message", details=details),
+                self.get_t("load_invalid_message", path=path, details=self._project_error_details(error)),
             )
             return
         except OSError as error:
@@ -669,6 +673,7 @@ class MainWindow(QMainWindow):
             )
             return
         except Exception as error:
+            logger.exception("Nie udało się wczytać projektu: %s", path)
             QMessageBox.critical(
                 self,
                 self.get_t("load_error_title"),
@@ -687,24 +692,49 @@ class MainWindow(QMainWindow):
                 self.get_t("overlay_migration_message", count=project.migrated_overlay_count),
             )
 
-        self.playlist_model.clear()
         for item in missing_items:
             print(self.get_t("skipped_missing_file", path=item.path))
 
-        self.playlist_model.add_files([item.path for item in existing_items])
+        # Zastosowanie projektu podmienia całą playlistę jednym resetem. Gdyby
+        # cokolwiek zawiodło w trakcie, wracamy do poprzednich wierszy i overlaya.
+        previous_entries = self.playlist_model.entries()
+        previous_overlay = self.overlay.global_asset
+        previous_project = self.settings.get_last_project()
+        try:
+            # Duplikaty i kolejność muszą przejść 1:1, więc stan czytamy
+            # z pozycji projektu, nie z mapy kluczowanej ścieżką.
+            self.playlist_model.replace_entries(
+                [PlaylistEntry.from_path(item.path, item.overlay, item.overlay_path) for item in existing_items]
+            )
+            # Brak overlaya w projekcie (albo plik zniknął) czyści poprzedni overlay.
+            self._set_global_overlay(overlay_path)
+            self.update_window_title(path)
+            self.settings.set_last_project(path)
+        except Exception as error:
+            logger.exception("Nie udało się zastosować projektu: %s", path)
+            self._restore_project_view(previous_entries, previous_overlay, previous_project)
+            QMessageBox.critical(
+                self,
+                self.get_t("load_error_title"),
+                self.get_t("load_failed", error=self.get_t("error_system", error=error)),
+            )
 
-        # Overlay per wiersz: duplikaty i kolejność muszą przejść 1:1, więc
-        # stan czytamy z pozycji projektu, nie z mapy kluczowanej ścieżką.
-        for row, item in enumerate(existing_items):
-            self.playlist_model.set_overlay_state(row, item.overlay, item.overlay_path)
-        if existing_items:
-            self.playlist_model.refresh_rows(0, len(existing_items) - 1)
+    def _project_error_details(self, error):
+        """Tłumaczy nazwę problemu domeny; nieznany klucz nie trafia do operatora."""
+        key = f"project_error_{error.key}"
+        details = self.get_t(key, **error.params)
+        if details == key:
+            return self.get_t("project_error_unknown", code=error.key)
+        return details
 
-        # Brak overlaya w projekcie (albo plik zniknął) czyści poprzedni overlay.
-        self._set_global_overlay(overlay_path)
-
-        self.settings.set_last_project(path)
-        self.update_window_title(path)
+    def _restore_project_view(self, entries, overlay_asset, project_path):
+        """Przywraca playlistę, overlay i tytuł po nieudanym zastosowaniu projektu."""
+        try:
+            self.playlist_model.replace_entries(entries)
+            self._set_global_overlay(overlay_asset)
+            self.update_window_title(project_path)
+        except Exception:
+            logger.exception("Nie udało się przywrócić playlisty po błędzie wczytywania projektu")
 
     def _on_theme_changed(self, _index):
         key = self.theme_combo.currentData()

@@ -34,7 +34,10 @@ overlay, gdy bieżąca pozycja jest plikiem audio.
 `overlay`, `overlay_path`. Nie „track" (to sugeruje tylko audio), nie „klip".
 
 **Playlista** (`playlist`) — uporządkowana lista pozycji, jeden projekt = jedna
-playlista. Kolejność jest znacząca: `next`/`previous` chodzą po niej liniowo.
+playlista. Kolejność jest znacząca: `next`/`previous` chodzą po niej w tej
+kolejności. Przy włączonym autoplay `next` z ostatniej pozycji wraca na
+pierwszą, a `previous` cofa odtwarzaną pozycję i nie zawija z pierwszej na
+ostatnią.
 
 **Odtwarzana pozycja** (`playing row` / `current item`) — pozycja wskazywana
 przez sesję jako aktualna. Może być w stanie odtwarzania albo pauzy.
@@ -108,7 +111,8 @@ Nie „crossfade" — nie ma przenikania między pozycjami.
 play/stop są ignorowane, bo trwa przejście. Dziś `is_transitioning`.
 
 **Autoplay** — automatyczne przejście do następnej pozycji: obrazy po zadanym
-czasie, wideo po zdarzeniu `Ended`. **Nie zawija** na końcu playlisty.
+czasie, wideo po zdarzeniu `Ended`. Po ostatniej pozycji zawija na pierwszą;
+playlista z jedną pozycją zatrzymuje się na niej, bez pętli.
 
 **Czas ekspozycji obrazu** (`image duration`) — ile sekund obraz jest widoczny
 przy autoplay. 1–60 s. Nie „image speed" (to nazwa suwaka, nie pojęcia).

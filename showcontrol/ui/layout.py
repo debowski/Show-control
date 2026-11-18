@@ -369,6 +369,7 @@ def _build_settings(window):
     window.image_switch_delay.setValue(5)
     window.image_switch_delay.setSuffix(" s")
     window.image_switch_delay.setFixedWidth(100)
+    window.image_switch_delay.valueChanged.connect(window._on_image_duration_changed)
     image_speed_layout.addWidget(image_speed_title)
     image_speed_layout.addStretch()
     image_speed_layout.addWidget(window.image_switch_delay)

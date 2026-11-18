@@ -7,7 +7,13 @@ from dataclasses import dataclass
 from PyQt6.QtCore import QObject, QTimer, pyqtSignal
 
 from showcontrol.domain.media import is_audio_file, is_image_file
-from showcontrol.domain.playlist import adjust_row_for_insert, adjust_row_for_move, adjust_row_for_remove
+from showcontrol.domain.playlist import (
+    adjust_row_for_insert,
+    adjust_row_for_move,
+    adjust_row_for_remove,
+    next_autoplay_row,
+    previous_autoplay_row,
+)
 from showcontrol.playback.engine import vlc
 
 
@@ -43,7 +49,7 @@ class PlaybackSession(QObject):
     transition_finished = pyqtSignal()
     failure = pyqtSignal(str)
 
-    def __init__(self, engine, store, advance=None, overlay_tick=None, on_failure=None, parent=None):
+    def __init__(self, engine, store, overlay_tick=None, on_failure=None, parent=None):
         super().__init__(parent)
         self.engine = engine
         self.store = store
@@ -51,7 +57,9 @@ class PlaybackSession(QObject):
         self.autoplay_enabled = False
         self.image_autoplay_start = None
         self.image_autoplay_duration = 0
-        self._advance = advance
+        # Czas obrazu z UI dla kolejnych pozycji; `image_autoplay_duration`
+        # to migawka aktywnego timera bieżącego obrazu.
+        self.configured_image_duration = 0
         self._overlay_tick = overlay_tick
         self._on_failure = on_failure
 
@@ -111,6 +119,7 @@ class PlaybackSession(QObject):
             return False
 
         path = self.store.path_at(row)
+        self.configured_image_duration = image_duration_seconds
         self._stop_image_autoplay()
         self._set_playing_row(row)
         self.media_changed.emit(path)
@@ -118,6 +127,23 @@ class PlaybackSession(QObject):
         if is_image_file(path):
             self._start_image_autoplay(image_duration_seconds)
         return True
+
+    def play_next(self):
+        """W trybie autoplay: następny wiersz, po ostatnim zawija na pierwszy."""
+        if not self.autoplay_enabled:
+            return
+        self._play_adjacent(next_autoplay_row)
+
+    def play_previous(self):
+        """W trybie autoplay: poprzedni wiersz; na pierwszym nie ma dokąd cofać."""
+        if not self.autoplay_enabled:
+            return
+        self._play_adjacent(previous_autoplay_row)
+
+    def _play_adjacent(self, choose_row):
+        row = choose_row(self.state.playing_row, self.store.row_count())
+        if row >= 0:
+            self.play_row(row, self.configured_image_duration)
 
     def toggle_play_pause(self):
         """Pauza/wznowienie; `False` znaczy „nie ma czego wznawiać"."""
@@ -206,8 +232,13 @@ class PlaybackSession(QObject):
 
     # --- autoplay ---
 
+    def set_image_duration(self, image_duration_seconds):
+        """Czas ekspozycji dla kolejnych obrazów; bieżącego timera nie rusza."""
+        self.configured_image_duration = image_duration_seconds
+
     def set_autoplay(self, enabled, image_duration_seconds):
         self.autoplay_enabled = enabled
+        self.set_image_duration(image_duration_seconds)
         if self.is_current_image():
             if self.image_autoplay_start is None:
                 self._start_image_autoplay(image_duration_seconds)
@@ -228,7 +259,7 @@ class PlaybackSession(QObject):
 
     def _on_image_timeout(self):
         if self.autoplay_enabled and self.is_current_image():
-            self._advance_next()
+            self.play_next()
 
     # --- polling 500 ms ---
 
@@ -241,7 +272,7 @@ class PlaybackSession(QObject):
                 if state in (vlc.State.Ended, vlc.State.Stopped):
                     self.state.is_playing = False
                     if state == vlc.State.Ended and self.autoplay_enabled:
-                        self._advance_next()
+                        self.play_next()
                 if not self.state.user_is_seeking:
                     self._emit_progress()
             elif not self.state.user_is_seeking:
@@ -264,10 +295,6 @@ class PlaybackSession(QObject):
         elapsed = self.engine.player.get_time()
         total = self.engine.player.get_length()
         self.progress_changed.emit(fraction, elapsed, total)
-
-    def _advance_next(self):
-        if self._advance:
-            self._advance()
 
     def _report_failure(self, exc):
         message = str(exc)

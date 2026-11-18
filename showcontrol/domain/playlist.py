@@ -41,6 +41,28 @@ def adjust_row_for_move(playing_row, source_row, count, destination_child):
     return playing_row
 
 
+def next_autoplay_row(playing_row, row_count):
+    """Wiersz, na który autoplay przechodzi po bieżącym; -1 gdy nie ma dokąd.
+
+    Zawija z ostatniej pozycji na pierwszą. Playlista z jedną pozycją
+    zatrzymuje się na tej pozycji, a wiersz spoza playlisty nie daje celu.
+    """
+    if row_count <= 1 or not 0 <= playing_row < row_count:
+        return -1
+    return (playing_row + 1) % row_count
+
+
+def previous_autoplay_row(playing_row, row_count):
+    """Wiersz cofnięty o jeden w trybie autoplay; -1 gdy nie ma dokąd.
+
+    Nie zawija z pierwszej pozycji na ostatnią. Playlista z jedną pozycją
+    zatrzymuje się na tej pozycji, a wiersz spoza playlisty nie daje celu.
+    """
+    if row_count <= 1 or not 0 < playing_row < row_count:
+        return -1
+    return playing_row - 1
+
+
 @dataclass
 class PlaylistEntry:
     path: str

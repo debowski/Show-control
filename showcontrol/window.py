@@ -66,11 +66,10 @@ class MainWindow(QMainWindow):
         self.session = PlaybackSession(
             self.engine,
             self.playlist_model.store,
-            advance=self.play_next_file,
             overlay_tick=self.overlay.tick,
             parent=self,
         )
-        self.session.playing_row_changed.connect(self.playlist_model.set_playing_row)
+        self.session.playing_row_changed.connect(self._on_playing_row_changed)
         self.session.media_changed.connect(self._set_projection_mode_for_path)
         self.session.progress_changed.connect(self._on_progress)
         self.session.idle.connect(self._on_idle)
@@ -444,6 +443,9 @@ class MainWindow(QMainWindow):
     def _on_autoplay_changed(self, state):
         self.session.set_autoplay(self.autoplay_checkbox.isChecked(), self.image_switch_delay.value())
 
+    def _on_image_duration_changed(self, value):
+        self.session.set_image_duration(value)
+
     def fade_out(self):
         if not self.session.is_playing or self.session.is_transitioning:
             return
@@ -477,18 +479,42 @@ class MainWindow(QMainWindow):
 
         self.session.stop(keep_overlay=keep_overlay, after_stop=after_stop)
 
+    def _on_playing_row_changed(self, row):
+        """Podświetla wiersz; przy autoplay zaznaczenie idzie za odtwarzaniem."""
+        self.playlist_model.set_playing_row(row)
+        if self.session.autoplay_enabled and row >= 0:
+            self._select_row(row)
+
+    def _select_row(self, row):
+        proxy_index = self.proxy_model.mapFromSource(self.playlist_model.index(row, 0))
+        if proxy_index.isValid():
+            self.playlist.setCurrentIndex(proxy_index)
+            return
+        # Wiersz ukryty przez filtr nie ma indeksu w proxy — czyścimy
+        # zaznaczenie, żeby akcje nie działały na nieaktualnym wierszu.
+        self.playlist.clearSelection()
+        self.playlist.selectionModel().clearCurrentIndex()
+
     def play_next_file(self):
-        idx = self.playlist.currentIndex()
-        if idx.isValid() and idx.row() < self.proxy_model.rowCount() - 1:
-            new_idx = self.proxy_model.index(idx.row() + 1, 0)
-            self.playlist.setCurrentIndex(new_idx)
-            self.play_media()
+        self._navigate(self.session.play_next, 1)
 
     def play_previous_file(self):
+        self._navigate(self.session.play_previous, -1)
+
+    def _navigate(self, autoplay_action, selection_direction):
+        if self.session.autoplay_enabled and self.session.playing_row >= 0:
+            autoplay_action()
+            return
+        self._play_selected_neighbor(selection_direction)
+
+    def _play_selected_neighbor(self, direction):
+        """Nawigacja po zaznaczeniu; bez zawijania na granicach playlisty."""
         idx = self.playlist.currentIndex()
-        if idx.isValid() and idx.row() > 0:
-            new_idx = self.proxy_model.index(idx.row() - 1, 0)
-            self.playlist.setCurrentIndex(new_idx)
+        if not idx.isValid():
+            return
+        target = idx.row() + direction
+        if 0 <= target < self.proxy_model.rowCount():
+            self.playlist.setCurrentIndex(self.proxy_model.index(target, 0))
             self.play_media()
 
     def select_overlay(self):

@@ -8,6 +8,8 @@ from showcontrol.domain.playlist import (
     adjust_row_for_insert,
     adjust_row_for_move,
     adjust_row_for_remove,
+    next_autoplay_row,
+    previous_autoplay_row,
 )
 
 
@@ -133,6 +135,54 @@ def test_adjust_for_move_shifts_row_when_other_entry_moves_up():
 
 def test_adjust_for_move_without_playing_row():
     assert adjust_row_for_move(-1, 0, 1, 3) == -1
+
+
+def test_next_autoplay_row_advances_linearly():
+    assert next_autoplay_row(1, 4) == 2
+
+
+def test_next_autoplay_row_wraps_after_last_position():
+    assert next_autoplay_row(3, 4) == 0
+
+
+def test_next_autoplay_row_stops_on_a_single_position():
+    assert next_autoplay_row(0, 1) == -1
+
+
+def test_next_autoplay_row_requires_playing_row():
+    assert next_autoplay_row(-1, 4) == -1
+
+
+def test_next_autoplay_row_for_empty_playlist():
+    assert next_autoplay_row(0, 0) == -1
+
+
+def test_next_autoplay_row_ignores_stale_row_outside_playlist():
+    assert next_autoplay_row(5, 3) == -1
+
+
+def test_previous_autoplay_row_moves_backwards():
+    assert previous_autoplay_row(2, 4) == 1
+
+
+def test_previous_autoplay_row_stops_at_first_position():
+    assert previous_autoplay_row(0, 4) == -1
+
+
+def test_previous_autoplay_row_stops_on_a_single_position():
+    assert previous_autoplay_row(0, 1) == -1
+
+
+def test_previous_autoplay_row_requires_playing_row():
+    assert previous_autoplay_row(-1, 4) == -1
+
+
+def test_previous_autoplay_row_for_empty_playlist():
+    assert previous_autoplay_row(0, 0) == -1
+
+
+def test_previous_autoplay_row_ignores_stale_row_outside_playlist():
+    assert previous_autoplay_row(5, 3) == -1
 
 
 def test_overlay_accessors_for_valid_and_invalid_rows():

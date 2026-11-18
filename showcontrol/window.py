@@ -20,7 +20,7 @@ from showcontrol.playback.engine import Engine
 from showcontrol.playback.fade import FadeController
 from showcontrol.playback.overlay import OverlayController
 from showcontrol.playback.session import PlaybackSession
-from showcontrol.ui.i18n import DEFAULT_LANGUAGE, get_t as translate
+from showcontrol.ui.i18n import DEFAULT_LANGUAGE, get_t as translate, media_dialog_filter
 from showcontrol.ui.layout import build_main_layout
 from showcontrol.ui.peak_meter import AudioPeakProvider
 from showcontrol.ui.playlist_view import PlaylistModel
@@ -150,9 +150,12 @@ class MainWindow(QMainWindow):
                 QShortcut(QKeySequence(key), self).activated.connect(callback)
         self.update_shortcuts()
 
+    def _ui_language(self):
+        return getattr(self, "language", DEFAULT_LANGUAGE)
+
     def get_t(self, key, **kwargs):
         """Return translated string for current language, formatting with kwargs if provided."""
-        return translate(getattr(self, "language", DEFAULT_LANGUAGE), key, **kwargs)
+        return translate(self._ui_language(), key, **kwargs)
 
     def apply_translations(self):
         """Apply translations to visible UI widgets. Safe to call multiple times."""
@@ -236,7 +239,7 @@ class MainWindow(QMainWindow):
     def update_shortcut_descriptions(self):
         """Jedyne miejsce, które wpisuje etykiety z klawiszami do widżetów."""
         remote_enabled = self.remote_checkbox.isChecked()
-        language = getattr(self, "language", DEFAULT_LANGUAGE)
+        language = self._ui_language()
         prev_key = navigation_shortcut("previous", remote_enabled)
         next_key = navigation_shortcut("next", remote_enabled)
 
@@ -365,7 +368,7 @@ class MainWindow(QMainWindow):
 
     def add_files(self):
         title = self.get_t("add_media_dialog")
-        files, _ = QFileDialog.getOpenFileNames(self, title, "", self.get_t("media_filter"))
+        files, _ = QFileDialog.getOpenFileNames(self, title, "", media_dialog_filter(self._ui_language()))
         self.playlist_model.add_files(files)
 
     def remove_file(self):

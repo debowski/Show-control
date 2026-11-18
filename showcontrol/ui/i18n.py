@@ -1,5 +1,7 @@
 """Teksty interfejsu PL/EN. Bez zależności od Qt."""
 
+from showcontrol.domain.media import MEDIA_EXTENSIONS
+
 # Prosty mechanizm tłumaczeń (polski / angielski)
 DEFAULT_LANGUAGE = "pl"
 TRANSLATIONS = {
@@ -75,7 +77,7 @@ TRANSLATIONS = {
         "select_overlay_dialog": "Wybierz nakładkę",
         "save_dialog": "Zapisz",
         "load_dialog": "Wczytaj",
-        "media_filter": "Media (*.mp4 *.mp3 *.mkv *.jpg *.png);;Wszystkie (*.*)",
+        "media_filter": "Media ({patterns});;Wszystkie (*.*)",
         "project_filter": "JSON (*.json)",
         "overlay_filter": "{title} (*.png *.jpg *.jpeg *.bmp *.gif *.mp4 *.mkv);;{title} (*.png *.jpg *.jpeg *.bmp *.gif);;{title} (*.mp4 *.mkv);;Wszystkie (*.*)",
         "overlay_item_filter": "Wszystkie obsługiwane (*.png *.jpg *.jpeg *.bmp *.gif *.mp4 *.mkv);;Obrazy (*.png *.jpg *.jpeg *.bmp *.gif);;Wideo (*.mp4 *.mkv);;Wszystkie (*.*)",
@@ -161,7 +163,7 @@ TRANSLATIONS = {
         "select_overlay_dialog": "Select overlay",
         "save_dialog": "Save",
         "load_dialog": "Load",
-        "media_filter": "Media (*.mp4 *.mp3 *.mkv *.jpg *.png);;All files (*.*)",
+        "media_filter": "Media ({patterns});;All files (*.*)",
         "project_filter": "JSON (*.json)",
         "overlay_filter": "{title} (*.png *.jpg *.jpeg *.bmp *.gif *.mp4 *.mkv);;{title} (*.png *.jpg *.jpeg *.bmp *.gif);;{title} (*.mp4 *.mkv);;All files (*.*)",
         "overlay_item_filter": "All supported (*.png *.jpg *.jpeg *.bmp *.gif *.mp4 *.mkv);;Images (*.png *.jpg *.jpeg *.bmp *.gif);;Video (*.mp4 *.mkv);;All files (*.*)",
@@ -194,3 +196,16 @@ def get_t(language, key, **kwargs):
         return text.format(**kwargs)
     except Exception:
         return text
+
+
+def _patterns(extensions):
+    """Maska rozszerzeń dla QFileDialog, np. ``*.mp4 *.mkv``."""
+    return " ".join(f"*{extension}" for extension in extensions)
+
+
+_MEDIA_PATTERNS = _patterns(MEDIA_EXTENSIONS)
+
+
+def media_dialog_filter(language):
+    """Filtr dialogu dodawania mediów oparty na `MEDIA_EXTENSIONS`."""
+    return get_t(language, "media_filter", patterns=_MEDIA_PATTERNS)

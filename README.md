@@ -53,7 +53,7 @@ Playback features:
 - Previous and next media navigation.
 - Playback progress indicator and seeking.
 - Real-time volume adjustment.
-- Automatic playback of the next playlist item.
+- Automatic playback of the next playlist item, wrapping to the first item at the end.
 - Configurable display duration for images.
 - Independent playback engines for primary media and video overlays.
 
@@ -106,9 +106,23 @@ The operator console provides three independent controls:
 | Brightness | 0–100% | Projection brightness and contrast |
 | Fade | 0.0–1.0 s | Fade-out duration |
 
-### Autoplay and Remote Control
+### Autoplay and Navigation
 
-- Automatically advances to the next playlist item.
+Autoplay advances automatically when a video reaches its end or an image has been displayed for the configured time.
+
+| Situation | Behavior |
+|---|---|
+| Autoplay on, a playlist item finishes | The next item starts automatically. |
+| Autoplay on, the last item finishes | Playback wraps to the first playlist item. |
+| Autoplay on, Previous is used on the first item | Playback stays on the first item; it does not wrap to the end. |
+| Autoplay on, the playlist contains one item | Playback stops at the end of that item instead of looping endlessly. |
+| Autoplay off | Next and Previous follow the current playlist selection and do not wrap at either end. |
+| The playing item is hidden by the active filter | The visible selection is cleared; playback continues on the playing item. |
+
+Additional navigation behavior:
+
+- While autoplay is enabled, the playlist selection follows the currently playing item, and Previous/Next move relative to that item.
+- Changing the image display duration applies to subsequent images, including during autoplay; the image currently on screen keeps its original timer.
 - Configurable image display duration (1–60 seconds).
 - Remote-control navigation mode using left and right arrow keys.
 - Standard navigation mode using up and down arrow keys.

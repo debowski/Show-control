@@ -25,22 +25,28 @@ właściwe typy. `project_from_data` nadal jest tolerancyjny dla starych plików
 i migracji ADR 0005 — walidacja dotyczy wejścia z pliku.
 
 `persistence/project_io.py` zamienia `JSONDecodeError` na `ProjectFileError`
-z linią i kolumną oraz `UnicodeDecodeError` na komunikat o kodowaniu. Błędy
-systemowe (brak pliku, uprawnienia) zostają `OSError`, bo nie dotyczą treści.
+z linią i kolumną (bez surowego tekstu dekodera) oraz `UnicodeDecodeError` na
+komunikat o kodowaniu. Błędy systemowe (brak pliku, uprawnienia) zostają
+`OSError`, bo nie dotyczą treści.
 
 `window.py`: `ProjectFileError` daje okno „Nieprawidłowy plik projektu”
-z tłumaczonym szczegółem (`project_error_*` w PL/EN), a `OSError` — powód
-po ludzku: brak uprawnień, plik używany przez inny program (WinError 32/33),
-brak pliku/katalogu, brak miejsca. Zapis używa tych samych powodów. Cały
-odczyt, walidacja i podział pozycji dzieją się **przed** wyczyszczeniem
-playlisty, więc nieudane wczytanie nie zmienia bieżącej listy, overlaya ani
+z tłumaczonym szczegółem (`project_error_*` w PL/EN), ścieżką pliku i powodem,
+a `OSError` — powód po ludzku: brak uprawnień, plik używany przez inny program
+(WinError 32/33), brak pliku/katalogu, brak miejsca. Nieznany klucz błędu nie
+wycieka do operatora — dostaje komunikat ogólny. Zapis używa tych samych
+powodów. Cały odczyt, walidacja i podział pozycji dzieją się **przed**
+zmianą playlisty. Sama zmiana to jeden reset modelu, a gdyby coś zawiodło
+w trakcie, `_restore_project_view` przywraca poprzednie wiersze, overlay
+i tytuł, więc nieudane wczytanie nie zmienia bieżącej listy ani
 `last_project`.
 
-Weryfikacja: `pytest` — 119 zielonych (nowe testy walidacji i błędów odczytu),
-`python -m ruff check .` czysto. Smoke headless na prawdziwym `MainWindow`:
-uszkodzony JSON, złe `files`, brak `path` — playlista i `last_project`
-nietknięte, komunikat zawiera linię/pole; poprawny projekt nadal się wczytuje;
-`PermissionError` przy zapisie daje „Brak uprawnień do pliku.”. `python main.py`
-w trybie offscreen startuje i działa. Do potwierdzenia na sprzęcie: dialog
-z prawdziwym plikiem zablokowanym przez inny program oraz brakujące
-uprawnienia w systemie plików.
+Weryfikacja: `pytest` — 122 zielone (nowe testy walidacji, błędów odczytu
+i podmiany playlisty), `python -m ruff check .` czysto. Smoke headless na
+prawdziwym `MainWindow`: uszkodzony JSON, złe `files`, brak `path` — playlista
+i `last_project` nietknięte, komunikat zawiera ścieżkę, linię/pole bez
+surowych tekstów; poprawny projekt nadal się wczytuje; symulowany wyjątek
+w trakcie zastosowania projektu przywraca playlistę; `PermissionError` przy
+zapisie daje „Brak uprawnień do pliku lub katalogu.”. `python main.py` w trybie
+offscreen startuje i działa. Do potwierdzenia na sprzęcie: dialog z prawdziwym
+plikiem zablokowanym przez inny program oraz brakujące uprawnienia w systemie
+plików.

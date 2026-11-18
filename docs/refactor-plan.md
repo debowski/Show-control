@@ -287,6 +287,9 @@ Nie naprawiamy w tym refaktorze. Każdy osobny ticket.
 | 13 | Dialog „Dodaj pliki" nie przyjmuje 8 z 13 obsługiwanych rozszerzeń: brak `.wav`, `.flac`, `.aac`, `.ogg`, `.m4a`, `.jpeg`, `.bmp`, `.gif` | `main.py:35` |
 | 14 | Projekt bez overlaya nie czyści poprzedniego — stary overlay zostaje na projekcji | `main.py:2116–2118` |
 
+Tabela opisuje stan sprzed refaktoru. Bieżący stan naprawy trzymają osobne
+tickety w `.scratch/poprawki/issues/` — m.in. 6 → ticket 09, 11 i 12 → ticket 06.
+
 Wersjonowanie: tagi `v0.3.9`–`v0.4.2` wskazują kod z nagłówkiem `0.3.7`;
 `v0.3.5`/`v0.3.6` to ten sam commit; `v0.4.2 → v0.7.1` to 4 linie kodu.
 `v0.7.1` = nowa linia bazowa, ciągłość 0.5/0.6 nie istnieje.

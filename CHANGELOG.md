@@ -6,6 +6,31 @@ Projekt jest przed 1.0 i nie ma zewnętrznych konsumentów API — zmiany widocz
 dla operatora idą jako patch, bo operator aktualizuje ręcznie i nie ma czego
 łamać poza własnym przyzwyczajeniem.
 
+## [0.8.1] — 2026-11-18
+
+### Naprawione
+
+- Duplikaty ścieżek są niezależnymi wierszami — overlay i przesuwanie działają
+  na wybranej kopii, nie na pierwszym wierszu z tą samą ścieżką.
+- Usunięcie odtwarzanej pozycji zatrzymuje odtwarzanie zamiast zostawiać
+  play/pause na nieistniejącym wierszu.
+- Jeden ekran i zmiany ekranów po starcie: okno projekcji przechodzi na drugi
+  ekran automatycznie, a ostrzeżenie znika po podłączeniu monitora.
+- Autoplay zawija z ostatniej pozycji na pierwszą, a previous cofa odtwarzaną
+  pozycję; pojedyncza pozycja nie zapętla się.
+- Dialog „Dodaj pliki” pokazuje wszystkie obsługiwane formaty, także audio
+  (`.wav`, `.flac`, `.aac`, `.ogg`, `.m4a`) i obrazy (`.jpeg`, `.bmp`, `.gif`).
+- Wczytanie projektu bez overlaya czyści poprzedni overlay; przycisk
+  czyszczenia ma wskaźnik stanu.
+- Uszkodzony lub niepełny plik projektu daje komunikat ze wskazaniem pola,
+  linii i kolumny zamiast surowego wyjątku. Błąd zapisu mówi o braku uprawnień,
+  zajętym pliku lub braku miejsca. Nieudane wczytanie nie rusza bieżącej
+  playlisty.
+
+### Zmienione
+
+- Usunięta nieużywana metoda `file_paths` z magazynu i modelu playlisty.
+
 ## [0.8.0] — 2026-11-17
 
 ### Dodane

@@ -1,6 +1,11 @@
 """Teksty interfejsu PL/EN. Bez zależności od Qt."""
 
-from showcontrol.domain.media import MEDIA_EXTENSIONS
+from showcontrol.domain.media import (
+    IMAGE_EXTENSIONS,
+    MEDIA_EXTENSIONS,
+    OVERLAY_EXTENSIONS,
+    VIDEO_EXTENSIONS,
+)
 
 # Prosty mechanizm tłumaczeń (polski / angielski)
 DEFAULT_LANGUAGE = "pl"
@@ -79,8 +84,8 @@ TRANSLATIONS = {
         "load_dialog": "Wczytaj",
         "media_filter": "Media ({patterns});;Wszystkie (*.*)",
         "project_filter": "JSON (*.json)",
-        "overlay_filter": "{title} (*.png *.jpg *.jpeg *.bmp *.gif *.mp4 *.mkv);;{title} (*.png *.jpg *.jpeg *.bmp *.gif);;{title} (*.mp4 *.mkv);;Wszystkie (*.*)",
-        "overlay_item_filter": "Wszystkie obsługiwane (*.png *.jpg *.jpeg *.bmp *.gif *.mp4 *.mkv);;Obrazy (*.png *.jpg *.jpeg *.bmp *.gif);;Wideo (*.mp4 *.mkv);;Wszystkie (*.*)",
+        "overlay_filter": "{title} ({patterns});;{title} ({image_patterns});;{title} ({video_patterns});;Wszystkie (*.*)",
+        "overlay_item_filter": "Wszystkie obsługiwane ({patterns});;Obrazy ({image_patterns});;Wideo ({video_patterns});;Wszystkie (*.*)",
         "overlay_item_tooltip": "[nakładka: {name}]",
         "overlay_global_tooltip": "[nakładka globalna]",
         "file_error_title": "Błąd pliku",
@@ -165,8 +170,8 @@ TRANSLATIONS = {
         "load_dialog": "Load",
         "media_filter": "Media ({patterns});;All files (*.*)",
         "project_filter": "JSON (*.json)",
-        "overlay_filter": "{title} (*.png *.jpg *.jpeg *.bmp *.gif *.mp4 *.mkv);;{title} (*.png *.jpg *.jpeg *.bmp *.gif);;{title} (*.mp4 *.mkv);;All files (*.*)",
-        "overlay_item_filter": "All supported (*.png *.jpg *.jpeg *.bmp *.gif *.mp4 *.mkv);;Images (*.png *.jpg *.jpeg *.bmp *.gif);;Video (*.mp4 *.mkv);;All files (*.*)",
+        "overlay_filter": "{title} ({patterns});;{title} ({image_patterns});;{title} ({video_patterns});;All files (*.*)",
+        "overlay_item_filter": "All supported ({patterns});;Images ({image_patterns});;Video ({video_patterns});;All files (*.*)",
         "overlay_item_tooltip": "[overlay: {name}]",
         "overlay_global_tooltip": "[global overlay]",
         "file_error_title": "File Error",
@@ -204,8 +209,34 @@ def _patterns(extensions):
 
 
 _MEDIA_PATTERNS = _patterns(MEDIA_EXTENSIONS)
+_OVERLAY_PATTERNS = _patterns(OVERLAY_EXTENSIONS)
+_IMAGE_PATTERNS = _patterns(IMAGE_EXTENSIONS)
+_VIDEO_PATTERNS = _patterns(VIDEO_EXTENSIONS)
 
 
 def media_dialog_filter(language):
     """Filtr dialogu dodawania mediów oparty na `MEDIA_EXTENSIONS`."""
     return get_t(language, "media_filter", patterns=_MEDIA_PATTERNS)
+
+
+def overlay_dialog_filter(language, title):
+    """Filtr dialogu wyboru globalnego overlaya (obrazy i wideo)."""
+    return get_t(
+        language,
+        "overlay_filter",
+        title=title,
+        patterns=_OVERLAY_PATTERNS,
+        image_patterns=_IMAGE_PATTERNS,
+        video_patterns=_VIDEO_PATTERNS,
+    )
+
+
+def overlay_item_dialog_filter(language):
+    """Filtr dialogu wyboru overlaya pozycji (obrazy i wideo)."""
+    return get_t(
+        language,
+        "overlay_item_filter",
+        patterns=_OVERLAY_PATTERNS,
+        image_patterns=_IMAGE_PATTERNS,
+        video_patterns=_VIDEO_PATTERNS,
+    )

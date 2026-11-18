@@ -20,7 +20,7 @@ from showcontrol.playback.engine import Engine
 from showcontrol.playback.fade import FadeController
 from showcontrol.playback.overlay import OverlayController
 from showcontrol.playback.session import PlaybackSession
-from showcontrol.ui.i18n import DEFAULT_LANGUAGE, get_t as translate, media_dialog_filter
+from showcontrol.ui.i18n import DEFAULT_LANGUAGE, get_t as translate, media_dialog_filter, overlay_dialog_filter
 from showcontrol.ui.layout import build_main_layout
 from showcontrol.ui.peak_meter import AudioPeakProvider
 from showcontrol.ui.playlist_view import PlaylistModel
@@ -493,7 +493,7 @@ class MainWindow(QMainWindow):
 
     def select_overlay(self):
         title = self.get_t("select_overlay_dialog")
-        filter_str = self.get_t("overlay_filter", title=title)
+        filter_str = overlay_dialog_filter(self._ui_language(), title)
         path, _ = QFileDialog.getOpenFileName(self, title, "", filter_str)
         if path:
             self._set_global_overlay(path)

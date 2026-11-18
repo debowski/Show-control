@@ -5,6 +5,7 @@ import os
 VIDEO_EXTENSIONS = (".mp4", ".mkv")
 AUDIO_EXTENSIONS = (".mp3", ".wav", ".flac", ".aac", ".ogg", ".m4a")
 IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png", ".bmp", ".gif")
+OVERLAY_EXTENSIONS = IMAGE_EXTENSIONS + VIDEO_EXTENSIONS
 MEDIA_EXTENSIONS = VIDEO_EXTENSIONS + AUDIO_EXTENSIONS + IMAGE_EXTENSIONS
 
 

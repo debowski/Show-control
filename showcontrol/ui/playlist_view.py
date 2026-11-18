@@ -8,7 +8,7 @@ from PyQt6.QtWidgets import QListView, QFileDialog, QStyledItemDelegate
 
 from showcontrol.domain.media import find_media_paths
 from showcontrol.domain.playlist import PlaylistStore
-from showcontrol.ui.i18n import DEFAULT_LANGUAGE, get_t
+from showcontrol.ui.i18n import DEFAULT_LANGUAGE, get_t, overlay_item_dialog_filter
 from showcontrol.ui.theme import theme_color
 
 
@@ -369,7 +369,7 @@ class PlaylistItemDelegate(QStyledItemDelegate):
                 parent_widget = option.widget
                 window = parent_widget.window() if parent_widget else None
                 dialog_title = _translate(window, "select_overlay_dialog")
-                filter_text = _translate(window, "overlay_item_filter")
+                filter_text = overlay_item_dialog_filter(getattr(window, "language", DEFAULT_LANGUAGE))
                 path, _ = QFileDialog.getOpenFileName(parent_widget, dialog_title, "", filter_text)
                 if path:
                     if hasattr(model, "sourceModel"):

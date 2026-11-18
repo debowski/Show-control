@@ -4,6 +4,7 @@ Logika VLC, fade i transportu żyje w ``playback/``. Tutaj zostaje wyłącznie
 sklejenie modułów, obsługa zdarzeń UI i zapis/odczyt projektu.
 """
 
+import errno
 import os
 import sys
 
@@ -14,7 +15,7 @@ from PyQt6.QtWidgets import QApplication, QFileDialog, QListView, QMainWindow, Q
 from showcontrol import __version__
 from showcontrol.bootstrap import set_window_icon
 from showcontrol.domain.media import is_audio_file
-from showcontrol.domain.project_schema import Project, ProjectItem
+from showcontrol.domain.project_schema import Project, ProjectFileError, ProjectItem
 from showcontrol.persistence.project_io import load_project_file, partition_project_items, save_project_file
 from showcontrol.playback.engine import Engine
 from showcontrol.playback.fade import FadeController
@@ -612,12 +613,30 @@ class MainWindow(QMainWindow):
                 save_project_file(path, project)
                 self.settings.set_last_project(path)
                 self.update_window_title(path)
-            except Exception as e:
+            except OSError as error:
                 QMessageBox.critical(
                     self,
                     self.get_t("save_error_title"),
-                    self.get_t("save_failed", error=e),
+                    self.get_t("save_failed", error=self._os_error_reason(error)),
                 )
+            except Exception as error:
+                QMessageBox.critical(
+                    self,
+                    self.get_t("save_error_title"),
+                    self.get_t("save_failed", error=self.get_t("error_system", error=error)),
+                )
+
+    def _os_error_reason(self, error):
+        """Zamienia błąd systemu na zdanie zrozumiałe dla operatora."""
+        if isinstance(error, PermissionError):
+            if getattr(error, "winerror", None) in (32, 33):
+                return self.get_t("error_file_in_use")
+            return self.get_t("error_permission_denied")
+        if isinstance(error, FileNotFoundError):
+            return self.get_t("error_file_missing")
+        if getattr(error, "errno", None) == errno.ENOSPC:
+            return self.get_t("error_disk_full")
+        return self.get_t("error_system", error=getattr(error, "strerror", None) or error)
 
     def load_project(self):
         path, _ = QFileDialog.getOpenFileName(self, self.get_t("load_dialog"), "", self.get_t("project_filter"))
@@ -625,47 +644,67 @@ class MainWindow(QMainWindow):
             self._load_project_file(path)
 
     def _load_project_file(self, path):
+        # Najpierw wszystko, co może zawieść: odczyt, walidacja i podział pozycji.
+        # Dopiero po sukcesie ruszamy bieżącą playlistę, więc nieudane wczytanie
+        # zostawia ją nietkniętą.
         try:
             project = load_project_file(path)
-            self.force_overlay_btn.blockSignals(True)
-            self.force_overlay_btn.setChecked(False)
-            self.force_overlay_btn.blockSignals(False)
-
-            if project.migrated_overlay_count:
-                QMessageBox.information(
-                    self,
-                    self.get_t("overlay_migration_title"),
-                    self.get_t("overlay_migration_message", count=project.migrated_overlay_count),
-                )
-
-            self.playlist_model.clear()
             existing_items, missing_items = partition_project_items(project, os.path.exists)
-            for item in missing_items:
-                print(self.get_t("skipped_missing_file", path=item.path))
-
-            self.playlist_model.add_files([item.path for item in existing_items])
-
-            # Overlay per wiersz: duplikaty i kolejność muszą przejść 1:1, więc
-            # stan czytamy z pozycji projektu, nie z mapy kluczowanej ścieżką.
-            for row, item in enumerate(existing_items):
-                self.playlist_model.set_overlay_state(row, item.overlay, item.overlay_path)
-            if existing_items:
-                self.playlist_model.refresh_rows(0, len(existing_items) - 1)
-
-            # Brak overlaya w projekcie (albo plik zniknął) czyści poprzedni overlay.
             overlay_path = project.overlay_path
             if overlay_path and not os.path.exists(overlay_path):
                 overlay_path = None
-            self._set_global_overlay(overlay_path)
-
-            self.settings.set_last_project(path)
-            self.update_window_title(path)
-        except Exception as e:
+        except ProjectFileError as error:
+            details = self.get_t(f"project_error_{error.key}", **error.params)
+            QMessageBox.critical(
+                self,
+                self.get_t("load_invalid_title"),
+                self.get_t("load_invalid_message", details=details),
+            )
+            return
+        except OSError as error:
             QMessageBox.critical(
                 self,
                 self.get_t("load_error_title"),
-                self.get_t("load_failed", error=e),
+                self.get_t("load_unreadable", path=path, reason=self._os_error_reason(error)),
             )
+            return
+        except Exception as error:
+            QMessageBox.critical(
+                self,
+                self.get_t("load_error_title"),
+                self.get_t("load_failed", error=self.get_t("error_system", error=error)),
+            )
+            return
+
+        self.force_overlay_btn.blockSignals(True)
+        self.force_overlay_btn.setChecked(False)
+        self.force_overlay_btn.blockSignals(False)
+
+        if project.migrated_overlay_count:
+            QMessageBox.information(
+                self,
+                self.get_t("overlay_migration_title"),
+                self.get_t("overlay_migration_message", count=project.migrated_overlay_count),
+            )
+
+        self.playlist_model.clear()
+        for item in missing_items:
+            print(self.get_t("skipped_missing_file", path=item.path))
+
+        self.playlist_model.add_files([item.path for item in existing_items])
+
+        # Overlay per wiersz: duplikaty i kolejność muszą przejść 1:1, więc
+        # stan czytamy z pozycji projektu, nie z mapy kluczowanej ścieżką.
+        for row, item in enumerate(existing_items):
+            self.playlist_model.set_overlay_state(row, item.overlay, item.overlay_path)
+        if existing_items:
+            self.playlist_model.refresh_rows(0, len(existing_items) - 1)
+
+        # Brak overlaya w projekcie (albo plik zniknął) czyści poprzedni overlay.
+        self._set_global_overlay(overlay_path)
+
+        self.settings.set_last_project(path)
+        self.update_window_title(path)
 
     def _on_theme_changed(self, _index):
         key = self.theme_combo.currentData()

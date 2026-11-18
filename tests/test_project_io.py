@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from showcontrol.domain.project_schema import Project, ProjectItem
+from showcontrol.domain.project_schema import Project, ProjectFileError, ProjectItem
 from showcontrol.persistence.project_io import load_project_file, partition_project_items, save_project_file
 
 
@@ -165,9 +165,45 @@ def test_load_missing_file_raises(tmp_path):
         load_project_file(tmp_path / "nie-ma.json")
 
 
-def test_load_invalid_json_raises(tmp_path):
+def test_load_invalid_json_raises_readable_error(tmp_path):
     path = tmp_path / "uszkodzony.json"
     path.write_text("{nie-json", encoding="utf-8")
 
-    with pytest.raises(json.JSONDecodeError):
+    with pytest.raises(ProjectFileError) as info:
         load_project_file(path)
+
+    assert info.value.key == "invalid_json"
+    assert info.value.params["line"] == 1
+    assert info.value.params["column"] > 0
+    assert info.value.params["reason"]
+
+
+def test_load_non_utf8_file_raises_readable_error(tmp_path):
+    path = tmp_path / "innne-kodowanie.json"
+    path.write_bytes(b'{"files": ["za\xb9\xbf\xf3\xb3.mp4"]}')
+
+    with pytest.raises(ProjectFileError) as info:
+        load_project_file(path)
+
+    assert info.value.key == "encoding"
+
+
+def test_load_project_without_files_field_raises_readable_error(tmp_path):
+    path = tmp_path / "niepelny.json"
+    path.write_text(json.dumps({"overlay": "global.png"}), encoding="utf-8")
+
+    with pytest.raises(ProjectFileError) as info:
+        load_project_file(path)
+
+    assert info.value.key == "missing_files"
+
+
+def test_load_project_with_wrong_file_field_type_names_the_field(tmp_path):
+    path = tmp_path / "zle-pole.json"
+    path.write_text(json.dumps({"files": "a.mp4"}), encoding="utf-8")
+
+    with pytest.raises(ProjectFileError) as info:
+        load_project_file(path)
+
+    assert info.value.key == "files_type"
+    assert info.value.params == {"actual": "string"}

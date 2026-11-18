@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 
-from showcontrol.domain.project_schema import project_from_data, project_to_data
+from showcontrol.domain.project_schema import ProjectFileError, project_from_data, project_to_data, validate_project_data
 
 
 def save_project_file(path, project):
@@ -14,9 +14,27 @@ def save_project_file(path, project):
 
 
 def load_project_file(path):
-    """Wczytaj obiekt `Project` z pliku JSON."""
-    with open(path, "r", encoding="utf-8") as handle:
-        return project_from_data(json.load(handle))
+    """Wczytaj obiekt `Project` z pliku JSON.
+
+    Błędy zawartości zgłaszane są jako `ProjectFileError` z nazwą problemu
+    i szczegółami pola, żeby UI mogło pokazać komunikat po ludzku. Błędy
+    wejścia/wyjścia (brak pliku, brak uprawnień) lecą dalej jako `OSError`.
+    """
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            data = json.load(handle)
+    except UnicodeDecodeError as error:
+        raise ProjectFileError("encoding") from error
+    except json.JSONDecodeError as error:
+        raise ProjectFileError(
+            "invalid_json",
+            line=error.lineno,
+            column=error.colno,
+            reason=error.msg,
+        ) from error
+
+    validate_project_data(data)
+    return project_from_data(data)
 
 
 def partition_project_items(project, path_exists):

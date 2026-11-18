@@ -1,6 +1,15 @@
 """Schemat pliku projektu: format bieżący, legacy i serializacja. Bez Qt i VLC."""
 
-from showcontrol.domain.project_schema import Project, ProjectItem, project_from_data, project_to_data
+import pytest
+
+from showcontrol.domain.project_schema import (
+    Project,
+    ProjectFileError,
+    ProjectItem,
+    project_from_data,
+    project_to_data,
+    validate_project_data,
+)
 
 
 def test_bare_list_is_legacy_format():
@@ -121,3 +130,51 @@ def test_round_trip_legacy_list_gets_new_shape():
     assert isinstance(data, dict)
     assert "files" in data
     assert "overlay" in data
+
+
+def test_validate_accepts_current_shape():
+    validate_project_data(
+        {
+            "files": [
+                {"path": "a.mp4", "overlay": True, "overlay_path": "item.png"},
+                {"path": "b.mp3", "overlay": False, "overlay_path": None},
+            ],
+            "overlay": "global.png",
+        }
+    )
+
+
+def test_validate_accepts_legacy_list_and_logo_key():
+    validate_project_data(["a.mp4", {"path": "b.mp3"}])
+    validate_project_data({"files": [], "logo": None})
+
+
+@pytest.mark.parametrize(
+    ("data", "key", "params"),
+    [
+        ("nie-projekt", "root_type", {"actual": "string"}),
+        ({}, "missing_files", {}),
+        ({"files": "a.mp4"}, "files_type", {"actual": "string"}),
+        ({"files": [42]}, "item_type", {"index": 1, "actual": "number"}),
+        ({"files": [{"overlay": True}]}, "item_path_missing", {"index": 1}),
+        ({"files": [{"path": 5}]}, "item_path_type", {"index": 1, "actual": "number"}),
+        (
+            {"files": [{"path": "a.mp4", "overlay": "tak"}]},
+            "item_overlay_type",
+            {"index": 1, "actual": "string"},
+        ),
+        (
+            {"files": [{"path": "a.mp4", "overlay_path": 3}]},
+            "item_overlay_path_type",
+            {"index": 1, "actual": "number"},
+        ),
+        ({"files": [], "overlay": 3}, "overlay_type", {"field": "overlay", "actual": "number"}),
+        ({"files": [], "logo": 3}, "overlay_type", {"field": "logo", "actual": "number"}),
+    ],
+)
+def test_validate_points_at_the_bad_field(data, key, params):
+    with pytest.raises(ProjectFileError) as info:
+        validate_project_data(data)
+
+    assert info.value.key == key
+    assert info.value.params == params

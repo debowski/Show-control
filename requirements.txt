@@ -1,3 +1,4 @@
 # Zależności runtime przypięte do wersji (faza 7). Aktualizuj świadomie.
 PyQt6==6.11.0
 python-vlc==3.0.21203
+pyaudiowpatch==0.2.12.9

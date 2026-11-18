@@ -8,6 +8,7 @@ import errno
 import logging
 import os
 import sys
+import time
 
 from PyQt6.QtCore import QModelIndex, Qt, QTimer
 from PyQt6.QtGui import QKeySequence, QShortcut
@@ -19,13 +20,14 @@ from showcontrol.domain.media import is_audio_file
 from showcontrol.domain.playlist import PlaylistEntry
 from showcontrol.domain.project_schema import Project, ProjectFileError, ProjectItem
 from showcontrol.persistence.project_io import load_project_file, partition_project_items, save_project_file
+from showcontrol.playback.audio_meter import AudioMeter
 from showcontrol.playback.engine import Engine
 from showcontrol.playback.fade import FadeController
+from showcontrol.playback.meter_policy import MIN_DB, MeterState, resolve_state
 from showcontrol.playback.overlay import OverlayController
 from showcontrol.playback.session import PlaybackSession
 from showcontrol.ui.i18n import DEFAULT_LANGUAGE, get_t as translate, media_dialog_filter, overlay_dialog_filter
 from showcontrol.ui.layout import build_main_layout
-from showcontrol.ui.peak_meter import AudioPeakProvider
 from showcontrol.ui.playlist_view import PlaylistModel
 from showcontrol.ui.projection import ProjectionWindow
 from showcontrol.ui.shortcuts import KEYBOARD_SHORTCUTS, navigation_shortcut, shortcut_description
@@ -92,7 +94,8 @@ class MainWindow(QMainWindow):
         app.screenRemoved.connect(self._on_screens_changed)
         self.fade = FadeController(self.engine, self._set_projection_brightness, parent=self)
         self.fade.finished.connect(self._on_fade_finished)
-        self.audio_peak_provider = AudioPeakProvider()
+        self.audio_meter = AudioMeter()
+        self.audio_meter.start()
         self._meter_timer = QTimer(self)
         self._meter_timer.setInterval(30)
         self._meter_timer.timeout.connect(self._update_audio_meter)
@@ -348,8 +351,18 @@ class MainWindow(QMainWindow):
         is_playing = self.session.is_playing and not self.session.is_transitioning
         if self.session.is_current_image():
             is_playing = False
-        db_l, db_r = self.audio_peak_provider.get_levels(is_playing, self.session.volume)
-        self.peak_meter.set_levels(db_l, db_r)
+
+        sample = self.audio_meter.latest()
+        state = resolve_state(is_playing=is_playing, sample=sample, now=time.monotonic())
+
+        if state is MeterState.NO_MEASUREMENT:
+            # Nie znamy poziomu: nie udajemy ciszy (ADR 0006).
+            self.peak_meter.set_no_measurement()
+            self.meter_peak_label.setText(self.get_t("meter_no_measurement"))
+        elif state is MeterState.SILENT:
+            self.peak_meter.set_levels(MIN_DB, MIN_DB)
+        else:
+            self.peak_meter.set_levels(sample.left_db, sample.right_db)
 
     def _on_peak_changed(self, peak_db):
         if peak_db <= -59.5:
@@ -752,5 +765,6 @@ class MainWindow(QMainWindow):
         self.settings.set_theme(theme_key)
 
     def closeEvent(self, event):
+        self.audio_meter.stop()
         self.projection_window.close()
         super().closeEvent(event)

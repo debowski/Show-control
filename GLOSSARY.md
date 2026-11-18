@@ -122,6 +122,41 @@ paska postępu. Dziś `user_is_seeking`.
 
 ---
 
+## Pomiar sygnału
+
+**Sygnał wyjściowy** (`output signal`) — sygnał kierowany do domyślnego
+urządzenia renderującego: po głośności aplikacji, po fade i po głośności
+końcówki. Jedyne źródło, z którego czyta miernik
+(`docs/adr/0006-miernik-realny-sygnal.md`). Nie „sygnał z pliku".
+
+**Miernik szczytowy** (`peak meter`) — pokazuje poziom szczytowy sygnału
+wyjściowego osobno dla kanałów L i R, na skali dBFS. Nie „VU meter": to nie
+skala uśredniona.
+
+**Poziom szczytowy** (`peak level`) — najwyższa amplituda w oknie pomiarowym
+(blok 1024 próbki, ~21 ms przy 48 kHz). Pomiar jest surowy; wygładzenie
+i opadanie to rysunek, nie pomiar.
+
+**dBFS** — skala względem pełnej skali: 0 dBFS to maksimum, wartości ujemne
+to zapas. Zakres miernika: od 0 do -60 dBFS.
+
+**Cisza** (`silence`) — zmierzony poziom szczytowy ≤ -60 dBFS albo sesja,
+która nie gra. Cisza jest **pomiarem**, nie brakiem danych.
+
+**Brak pomiaru** (`no measurement`) — sesja gra, a miernik nie ma świeżych
+danych (starszych niż 250 ms). Osobny stan, różny od ciszy: mówi, że tor
+pomiarowy nie działa. Pokazywanie w tym stanie ciszy jest błędem — to
+kłamstwo w drugą stronę.
+
+**Wskaźnik szczytu** (`peak hold`) — utrzymywana kreska najwyższego poziomu;
+opada po czasie zatrzymania. Element rysunku, nie osobny pomiar.
+
+**Stan do `v0.8.1`:** miernik rysował wartości z symulatora (`math.sin`,
+`random`). Usunięte przez ADR 0006. Kod, który nie czyta WASAPI loopbacku,
+jest błędny — tak samo jak `logo` po ADR 0002.
+
+---
+
 ## Sterowanie
 
 **Tryb pilota** (`remote mode`) — mapowanie nawigacji na strzałki

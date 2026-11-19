@@ -71,7 +71,7 @@ class ProjectionCurtain(QWidget):
         self._apply_mode = apply_mode
         self._ready_check = ready_check
         self._waited_ms = 0
-        self.setGeometry(self.parentWidget().frameGeometry())
+        self._cover_projection()
         if not self.isVisible():
             self.setWindowOpacity(0.0)
             self.show()
@@ -89,7 +89,14 @@ class ProjectionCurtain(QWidget):
 
     def follow(self):
         if self.isVisible():
-            self.setGeometry(self.parentWidget().frameGeometry())
+            self._cover_projection()
+
+    def _cover_projection(self):
+        # `geometry()`, nie `frameGeometry()`: pełnoekranowe okno na Windows
+        # raportuje ramkę mniejszą od obszaru klienta (niewidoczne marginesy
+        # przy skalowaniu DPI). Kurtyna zasłania obraz, więc ma pokryć klienta
+        # co do piksela — inaczej wideo przebija cienką obwódką ekranu.
+        self.setGeometry(self.parentWidget().geometry())
 
     def _animate(self, value, duration_ms):
         self._animation.stop()

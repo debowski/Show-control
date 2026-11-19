@@ -87,12 +87,9 @@ class StereoPeakMeter(QWidget):
         self.update()
 
     def reset(self):
-        """Zeruje wskaźniki do ciszy (-inf dBFS)."""
+        """Zeruje wskaźniki do ciszy."""
         self._no_measurement = False
-        self._current_l = MIN_DBFS
-        self._current_r = MIN_DBFS
-        self._peak_hold_l = MIN_DBFS
-        self._peak_hold_r = MIN_DBFS
+        self._clear_levels()
         self.peak_changed.emit(MIN_DBFS)
         self.update()
 
@@ -103,11 +100,16 @@ class StereoPeakMeter(QWidget):
         urządzenie. ADR 0006 zabrania pokazywania tu ciszy.
         """
         self._no_measurement = True
+        self._clear_levels()
+        self.update()
+
+    def _clear_levels(self):
+        """Zeruje słupki i peak hold; wspólne dla ciszy i braku pomiaru."""
         self._current_l = MIN_DBFS
         self._current_r = MIN_DBFS
         self._peak_hold_l = MIN_DBFS
         self._peak_hold_r = MIN_DBFS
-        self.update()
+        self._last_tick = time.time()
 
     def _on_tick(self):
         if self._no_measurement:

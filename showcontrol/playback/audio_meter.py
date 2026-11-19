@@ -96,6 +96,9 @@ class AudioMeter:
                         continue
                 elif not self._healthy(pa, stream):
                     stream = self._close(stream)
+                    # Nie czekamy pełnego interwału: po zmianie urządzenia
+                    # otwieramy nowy loopback od razu.
+                    continue
 
                 self._stop.wait(DEVICE_CHECK_SEC)
         finally:
@@ -119,6 +122,8 @@ class AudioMeter:
         channels = int(info.get("maxInputChannels") or 2)
 
         try:
+            # PyAudio w trybie callbackowym startuje strumień od razu
+            # (``start=True``), więc nie wołamy ``start_stream()`` drugi raz.
             stream = pa.open(
                 format=pyaudio.paInt16,
                 channels=channels,
@@ -128,7 +133,6 @@ class AudioMeter:
                 input_device_index=index,
                 stream_callback=self._make_callback(pyaudio, channels),
             )
-            stream.start_stream()
         except Exception:
             logger.exception("Nie udało się otworzyć loopbacku urządzenia %r", info.get("name"))
             return None

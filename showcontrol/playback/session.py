@@ -108,9 +108,12 @@ class PlaybackSession(QObject):
 
         ``is_playing`` zostaje prawdziwe w pauzie, a obraz nie ma ścieżki
         audio, więc miernik nie może oprzeć się na samej fladze sesji.
+        Wideoklip bez ścieżki dźwiękowej to cisza, nie awaria pomiaru.
         Fade out nadal gra, dlatego flaga przejścia nie wyłącza pomiaru.
         """
         if not self.state.is_playing or self.is_current_image():
+            return False
+        if self.engine.player.audio_get_track_count() <= 0:
             return False
         return self.engine.player.get_state() == vlc.State.Playing
 

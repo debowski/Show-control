@@ -23,7 +23,7 @@ from showcontrol.persistence.project_io import load_project_file, partition_proj
 from showcontrol.playback.audio_meter import AudioMeter
 from showcontrol.playback.engine import Engine
 from showcontrol.playback.fade import FadeController
-from showcontrol.playback.meter_policy import MIN_DB, MeterState, resolve_state
+from showcontrol.playback.meter_policy import MeterState, resolve_state
 from showcontrol.playback.overlay import OverlayController
 from showcontrol.playback.session import PlaybackSession
 from showcontrol.ui.i18n import DEFAULT_LANGUAGE, get_t as translate, media_dialog_filter, overlay_dialog_filter
@@ -348,19 +348,19 @@ class MainWindow(QMainWindow):
                 self.engine.player.audio_set_volume(self.volume_slider.value())
 
     def _update_audio_meter(self):
-        is_playing = self.session.is_playing and not self.session.is_transitioning
-        if self.session.is_current_image():
-            is_playing = False
-
         sample = self.audio_meter.latest()
-        state = resolve_state(is_playing=is_playing, sample=sample, now=time.monotonic())
+        state = resolve_state(
+            is_playing=self.session.is_audio_rendering(),
+            sample=sample,
+            now=time.monotonic(),
+        )
 
         if state is MeterState.NO_MEASUREMENT:
             # Nie znamy poziomu: nie udajemy ciszy (ADR 0006).
             self.peak_meter.set_no_measurement()
             self.meter_peak_label.setText(self.get_t("meter_no_measurement"))
         elif state is MeterState.SILENT:
-            self.peak_meter.set_levels(MIN_DB, MIN_DB)
+            self.peak_meter.reset()
         else:
             self.peak_meter.set_levels(sample.left_db, sample.right_db)
 

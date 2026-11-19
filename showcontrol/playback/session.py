@@ -103,6 +103,17 @@ class PlaybackSession(QObject):
     def is_current_audio(self):
         return is_audio_file(self.current_media_path())
 
+    def is_audio_rendering(self):
+        """Czy bieżąca pozycja naprawdę oddaje dźwięk do urządzenia.
+
+        ``is_playing`` zostaje prawdziwe w pauzie, a obraz nie ma ścieżki
+        audio, więc miernik nie może oprzeć się na samej fladze sesji.
+        Fade out nadal gra, dlatego flaga przejścia nie wyłącza pomiaru.
+        """
+        if not self.state.is_playing or self.is_current_image():
+            return False
+        return self.engine.player.get_state() == vlc.State.Playing
+
     # --- cykl życia ---
 
     def start(self):

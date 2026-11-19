@@ -87,15 +87,10 @@ def _build_top_panel(window, root):
     window.overlay_status_label = QLabel()
     window.overlay_status_label.setObjectName("OverlayStatusLabel")
 
-    window.window_btn = QPushButton()
-    window.window_btn.setObjectName("HideBtn")
-    window.window_btn.clicked.connect(window.toggle_projection_window)
-
     mgmt_center = QHBoxLayout()
     mgmt_center.addWidget(window.overlay_btn)
     mgmt_center.addWidget(window.clear_overlay_btn)
     mgmt_center.addWidget(window.overlay_status_label)
-    mgmt_center.addWidget(window.window_btn)
     top_bar.addLayout(mgmt_center)
 
     top_bar.addStretch()
@@ -220,14 +215,11 @@ def _build_bottom_panel(window, root):
     window.fade_btn = QPushButton()
     window.fade_btn.setObjectName("FadeBtn")
     window.fade_btn.clicked.connect(window.fade_out)
-    window.fullscreen_btn = QPushButton()
-    window.fullscreen_btn.clicked.connect(window.toggle_projection_fullscreen)
     window.force_overlay_btn = QPushButton()
     window.force_overlay_btn.setCheckable(True)
     window.force_overlay_btn.setObjectName("TransportBtn")
     window.force_overlay_btn.toggled.connect(window.toggle_overlay)
     view_layout.addWidget(window.fade_btn)
-    view_layout.addWidget(window.fullscreen_btn)
     view_layout.addWidget(window.force_overlay_btn)
 
     audio_group = QGroupBox()
@@ -415,5 +407,17 @@ def _build_settings(window):
     lang_row.addWidget(window.lang_label)
     lang_row.addWidget(window.lang_combo, stretch=1)
     set_layout.addLayout(lang_row)
+
+    # --- Sterowanie projekcją ---
+    projection_row = QHBoxLayout()
+    window.fullscreen_btn = QPushButton()
+    window.fullscreen_btn.clicked.connect(window.toggle_projection_fullscreen)
+    window.window_btn = QPushButton()
+    window.window_btn.setObjectName("HideBtn")
+    window.window_btn.clicked.connect(window.toggle_projection_window)
+    projection_row.addWidget(window.fullscreen_btn, stretch=1)
+    projection_row.addWidget(window.window_btn, stretch=1)
+    set_layout.addLayout(projection_row)
+
     set_layout.addStretch()
     return settings_group

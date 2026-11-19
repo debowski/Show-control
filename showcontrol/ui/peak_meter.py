@@ -2,9 +2,9 @@
 
 Standard IEC 60268-10 / IEC 60268-18 (dBFS):
 - Skala: 0 dBFS (Full Scale) do -60 dBFS
-- Kolory: zielony (< -18 dBFS), ĹĽĂłĹ‚ty (-18 do -6 dBFS), czerwony (>= -6 dBFS)
-- Dwa niezaleĹĽne kanaĹ‚y stereo: L i R
-- WskaĹşniki wartoĹ›ci szczytowej (Peak Hold) z czasem powrotu IEC
+- Kolory: zielony (< -18 dBFS), żółty (-18 do -6 dBFS), czerwony (>= -6 dBFS)
+- Dwa niezależne kanały stereo: L i R
+- Wskaźniki wartości szczytowej (Peak Hold) z czasem powrotu IEC
 """
 
 import time
@@ -21,14 +21,14 @@ MAX_DBFS = 0.0
 YELLOW_THRESHOLD_DB = -18.0
 RED_THRESHOLD_DB = -6.0
 
-# Dynamika IEC (powrĂłt: ok. 1.7s na 20 dB, spadek szczytu po 1.2s zatrzymania)
+# Dynamika IEC (powrót: ok. 1.7s na 20 dB, spadek szczytu po 1.2s zatrzymania)
 DECAY_RATE_DB_PER_SEC = 20.0 / 1.7  # ~11.76 dB/s
 PEAK_HOLD_TIME_SEC = 1.2
-PEAK_HOLD_DECAY_RATE = 20.0  # 20 dB/s po wygaĹ›niÄ™ciu hold
+PEAK_HOLD_DECAY_RATE = 20.0  # 20 dB/s po wygaśnięciu hold
 
 
 class StereoPeakMeter(QWidget):
-    """WidĹĽet pionowego stereofonicznego miernika szczytowego IEC dBFS."""
+    """Widżet pionowego stereofonicznego miernika szczytowego IEC dBFS."""
 
     peak_changed = pyqtSignal(float)
 
@@ -52,14 +52,14 @@ class StereoPeakMeter(QWidget):
         # Brak pomiaru: sesja gra, a danych nie ma. Nie jest to cisza.
         self._no_measurement = False
 
-        # Timer do pĹ‚ynnego opadania (decay) i odĹ›wieĹĽania (~33 FPS)
+        # Timer do płynnego opadania (decay) i odświeżania (~33 FPS)
         self._timer = QTimer(self)
         self._timer.setInterval(30)
         self._timer.timeout.connect(self._on_tick)
         self._timer.start()
 
     def set_levels(self, db_l: float, db_r: float):
-        """Ustawia docelowe poziomy szczytowe kanaĹ‚Ăłw L i R (w dBFS)."""
+        """Ustawia docelowe poziomy szczytowe kanałów L i R (w dBFS)."""
         now = time.time()
         self._no_measurement = False
 
@@ -73,11 +73,11 @@ class StereoPeakMeter(QWidget):
         if db_r >= self._current_r:
             self._current_r = db_r
 
-        # ObsĹ‚uga Peak Hold L
+        # Obsługa Peak Hold L
         if db_l >= self._peak_hold_l:
             self._peak_hold_l = db_l
             self._peak_hold_time_l = now
-        # ObsĹ‚uga Peak Hold R
+        # Obsługa Peak Hold R
         if db_r >= self._peak_hold_r:
             self._peak_hold_r = db_r
             self._peak_hold_time_r = now
@@ -87,7 +87,7 @@ class StereoPeakMeter(QWidget):
         self.update()
 
     def reset(self):
-        """Zeruje wskaĹşniki do ciszy (-inf dBFS)."""
+        """Zeruje wskaźniki do ciszy (-inf dBFS)."""
         self._no_measurement = False
         self._current_l = MIN_DBFS
         self._current_r = MIN_DBFS
@@ -97,10 +97,10 @@ class StereoPeakMeter(QWidget):
         self.update()
 
     def set_no_measurement(self):
-        """Sesja gra, ale miernik nie ma Ĺ›wieĹĽych danych.
+        """Sesja gra, ale miernik nie ma świeżych danych.
 
-        To nie cisza: strumieĹ„ pomiaru padĹ‚ albo sygnaĹ‚ idzie na inne
-        urzÄ…dzenie. ADR 0006 zabrania pokazywania tu ciszy.
+        To nie cisza: strumień pomiaru padł albo sygnał idzie na inne
+        urządzenie. ADR 0006 zabrania pokazywania tu ciszy.
         """
         self._no_measurement = True
         self._current_l = MIN_DBFS
@@ -117,7 +117,7 @@ class StereoPeakMeter(QWidget):
         dt = now - self._last_tick
         self._last_tick = now
 
-        # Opadanie bieĹĽÄ…cego poziomu (IEC decay)
+        # Opadanie bieżącego poziomu (IEC decay)
         decay = DECAY_RATE_DB_PER_SEC * dt
         self._current_l = max(MIN_DBFS, self._current_l - decay)
         self._current_r = max(MIN_DBFS, self._current_r - decay)
@@ -143,12 +143,12 @@ class StereoPeakMeter(QWidget):
         w = self.width()
         h = self.height()
 
-        # TĹ‚o moduĹ‚u miernika
+        # Tło modułu miernika
         painter.fillRect(0, 0, w, h, QColor("#141414"))
         painter.setPen(QColor("#2c2c2c"))
         painter.drawRect(0, 0, w - 1, h - 1)
 
-        # Geometria sĹ‚upkĂłw
+        # Geometria słupków
         bar_top = 8
         bar_bottom = h - 18
         bar_height = bar_bottom - bar_top
@@ -158,7 +158,7 @@ class StereoPeakMeter(QWidget):
         bar_r_x = 18
         scale_x = 31
 
-        # PodziaĹ‚ka dBFS (kreski i etykiety)
+        # Podziałka dBFS (kreski i etykiety)
         ticks = [
             (0, " 0"),
             (-3, "-3"),
@@ -177,7 +177,7 @@ class StereoPeakMeter(QWidget):
             frac = (db_val - MIN_DBFS) / (MAX_DBFS - MIN_DBFS)
             y = int(bar_bottom - frac * bar_height)
 
-            # Kolor kreski w zaleĹĽnoĹ›ci od strefy
+            # Kolor kreski w zależności od strefy
             if db_val >= RED_THRESHOLD_DB:
                 line_color = QColor("#ff4444")
             elif db_val >= YELLOW_THRESHOLD_DB:
@@ -192,8 +192,8 @@ class StereoPeakMeter(QWidget):
             painter.drawText(scale_x + 5, y + 3, label)
 
         if self._no_measurement:
-            # Kratka zamiast sĹ‚upkĂłw: miernik nie wie, co gra. WyraĹşnie inne
-            # niĹĽ cisza, ktĂłra rysuje zgaszone segmenty (ADR 0006).
+            # Kratka zamiast słupków: miernik nie wie, co gra. Wyraźnie inne
+            # niż cisza, która rysuje zgaszone segmenty (ADR 0006).
             plot_left = bar_l_x
             plot_right = scale_x - 2
             painter.save()
@@ -205,17 +205,17 @@ class StereoPeakMeter(QWidget):
             self._draw_channel_labels(painter, h, bar_l_x, bar_r_x)
             return
 
-        # Rysowanie segmentĂłw sĹ‚upkĂłw L i R
+        # Rysowanie segmentów słupków L i R
         step = 3
         num_segments = bar_height // step
 
         for seg in range(num_segments):
             y_seg = bar_bottom - (seg + 1) * step
-            # Poziom dBFS odpowiadajÄ…cy Ĺ›rodkowi tego segmentu
+            # Poziom dBFS odpowiadający środkowi tego segmentu
             frac = (num_segments - 1 - seg) / (num_segments - 1) if num_segments > 1 else 0
             seg_db = MIN_DBFS + (1.0 - frac) * (MAX_DBFS - MIN_DBFS)
 
-            # DobĂłr koloru Ĺ›wiecÄ…cego i zgaszonego
+            # Dobór koloru świecącego i zgaszonego
             if seg_db >= RED_THRESHOLD_DB:
                 lit_color = QColor("#ff3333")
                 dim_color = QColor("#331010")
@@ -226,19 +226,19 @@ class StereoPeakMeter(QWidget):
                 lit_color = QColor("#2ecc71")
                 dim_color = QColor("#0d2e18")
 
-            # KanaĹ‚ L
+            # Kanał L
             color_l = lit_color if seg_db <= self._current_l else dim_color
             painter.fillRect(bar_l_x, y_seg, bar_w, step - 1, color_l)
 
-            # KanaĹ‚ R
+            # Kanał R
             color_r = lit_color if seg_db <= self._current_r else dim_color
             painter.fillRect(bar_r_x, y_seg, bar_w, step - 1, color_r)
 
-        # WskaĹşniki Peak Hold (pozioma kreska 2px)
+        # Wskaźniki Peak Hold (pozioma kreska 2px)
         self._draw_peak_line(painter, bar_l_x, bar_w, self._peak_hold_l, bar_bottom, bar_height)
         self._draw_peak_line(painter, bar_r_x, bar_w, self._peak_hold_r, bar_bottom, bar_height)
 
-        # Etykiety kanaĹ‚Ăłw "L" i "R" na dole
+        # Etykiety kanałów "L" i "R" na dole
         self._draw_channel_labels(painter, h, bar_l_x, bar_r_x)
 
     def _draw_channel_labels(self, painter, height, bar_l_x, bar_r_x):

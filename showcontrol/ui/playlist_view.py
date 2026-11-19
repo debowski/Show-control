@@ -202,10 +202,15 @@ class PlaylistModel(QAbstractListModel):
         old_row = self._playing_row
         self._playing_row = row
 
+        # Podświetlenie to wyłącznie wygląd. Bez ról `dataChanged` znaczy
+        # „zmieniło się wszystko" i okno przelicza tryb projekcji w trakcie
+        # startu odtwarzania — drugie `apply` obchodzi kurtynę i overlay
+        # błyska przed jej zasłonięciem.
+        roles = [Qt.ItemDataRole.BackgroundRole, Qt.ItemDataRole.FontRole]
         if 0 <= old_row < self.rowCount():
-            self.dataChanged.emit(self.index(old_row, 0), self.index(old_row, 0))
+            self.dataChanged.emit(self.index(old_row, 0), self.index(old_row, 0), roles)
         if 0 <= row < self.rowCount():
-            self.dataChanged.emit(self.index(row, 0), self.index(row, 0))
+            self.dataChanged.emit(self.index(row, 0), self.index(row, 0), roles)
 
 
 class PlaylistView(QListView):

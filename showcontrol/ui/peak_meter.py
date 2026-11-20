@@ -11,7 +11,7 @@ import time
 
 from PyQt6.QtCore import QTimer, pyqtSignal
 from PyQt6.QtGui import QColor, QFont, QPainter, QPen
-from PyQt6.QtWidgets import QWidget
+from PyQt6.QtWidgets import QSizePolicy, QWidget
 
 # Parametry skali IEC dBFS
 MIN_DBFS = -60.0
@@ -34,7 +34,11 @@ class StereoPeakMeter(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setFixedSize(68, 140)
+        # Stała szerokość, wysokość rozciąga się tak jak suwaki obok, żeby
+        # skala miernika pokrywała się z długością suwaków głośności i jasności.
+        self.setFixedWidth(68)
+        self.setMinimumHeight(140)
+        self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
 
         # Poziomy chwilowe (w dBFS)
         self._current_l = MIN_DBFS
@@ -151,8 +155,8 @@ class StereoPeakMeter(QWidget):
         painter.drawRect(0, 0, w - 1, h - 1)
 
         # Geometria słupków
-        bar_top = 8
-        bar_bottom = h - 18
+        bar_top = 4
+        bar_bottom = h - 10
         bar_height = bar_bottom - bar_top
         bar_w = 9
 
@@ -244,11 +248,11 @@ class StereoPeakMeter(QWidget):
         self._draw_channel_labels(painter, h, bar_l_x, bar_r_x)
 
     def _draw_channel_labels(self, painter, height, bar_l_x, bar_r_x):
-        label_font = QFont("Arial", 7, QFont.Weight.Bold)
+        label_font = QFont("Arial", 6, QFont.Weight.Bold)
         painter.setFont(label_font)
         painter.setPen(QColor("#aaaaaa"))
-        painter.drawText(bar_l_x + 1, height - 5, "L")
-        painter.drawText(bar_r_x + 1, height - 5, "R")
+        painter.drawText(bar_l_x + 1, height - 1, "L")
+        painter.drawText(bar_r_x + 1, height - 1, "R")
 
     def _draw_peak_line(self, painter, x, width, db_val, bar_bottom, bar_height):
         if db_val <= MIN_DBFS:
